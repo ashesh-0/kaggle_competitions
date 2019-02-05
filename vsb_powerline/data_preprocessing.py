@@ -20,7 +20,7 @@ class DataPipeline:
         self._concurrency = concurrency
         self._nrows = num_rows
         self._processor_args = data_processor_args
-        self._thread_count = 4
+        self._process_count = 4
 
     @staticmethod
     def run_one_chunk(arg_tuple):
@@ -45,7 +45,7 @@ class DataPipeline:
             args_this_chunk = [self._fname, self._processor_args, s_index, e_index, self._nrows]
             args_list.append(args_this_chunk)
 
-        pool = Pool(self._thread_count)
+        pool = Pool(self._process_count)
         outputs = pool.map(DataPipeline.run_one_chunk, args_list)
         pool.close()
         pool.join()
