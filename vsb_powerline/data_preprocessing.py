@@ -1,12 +1,7 @@
-import gc
-from typing import List
-from datetime import datetime
-import dask as dd
+from multiprocessing import Pool
+
 import pandas as pd
 import pyarrow.parquet as pq
-from dask import delayed
-from dask.context import _globals
-from multiprocessing.dummy import Pool as ThreadPool
 
 
 class DataPipeline:
@@ -50,7 +45,7 @@ class DataPipeline:
             args_this_chunk = [self._fname, self._processor_args, s_index, e_index, self._nrows]
             args_list.append(args_this_chunk)
 
-        pool = ThreadPool(self._thread_count)
+        pool = Pool(self._thread_count)
         outputs = pool.map(DataPipeline.run_one_chunk, args_list)
         pool.close()
         pool.join()
