@@ -67,7 +67,7 @@ class DataPipeline:
         # del data_df
         # del data
 
-        final_output_df = pd.concat(outputs)
+        final_output_df = pd.concat(outputs, axis=1)
         return final_output_df
 
 
@@ -124,9 +124,11 @@ class DataProcessor:
             temp_df.index = list(map(lambda x: 'diff_smoothend_by_' + str(smoothener) + ' ' + x, temp_df.index))
             temp_metrics.append(temp_df)
 
-        return pd.concat(temp_metrics)
+        df = pd.concat(temp_metrics)
+        df.index.name = 'features'
+        return df
 
-    def transform(self, X_df: List[float]):
+    def transform(self, X_df: pd.DataFrame):
         # Work with noise
         if self._smoothing_window > 0:
             X_df = self.get_noise(X_df)
@@ -140,9 +142,6 @@ class DataProcessor:
             one_data_point = DataProcessor.transform_chunk(X_df.iloc[s_tm_index:e_tm_index, :])
             transformed_data.append(one_data_point)
 
-        # with dd.config.set(pool=ThreadPool(10), scheduler='threads'):
-        # with dd.config.set(scheduler='single-threaded'):
-
 
 #         transformed_data = dd.compute(
 #             *transformed_data,
@@ -154,5 +153,5 @@ class DataProcessor:
             transformed_data[ts]['ts'] = ts
 
         df = pd.concat(transformed_data, axis=0).set_index(['ts'], append=True)
-        df.columns.name = 'features'
+        df.columns.name = 'Examples'
         return df
