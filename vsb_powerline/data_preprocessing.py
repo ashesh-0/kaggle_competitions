@@ -15,7 +15,7 @@ class DataPipeline:
             self,
             parquet_fname: str,
             data_processor,
-            concurrency: int = 10,
+            concurrency: int = 100,
             num_rows: int = 1782,
     ):
         self._fname = parquet_fname
