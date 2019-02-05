@@ -50,18 +50,6 @@ class DataPipeline:
         pool.close()
         pool.join()
 
-        # data = pq.read_pandas(self._fname, columns=cols)
-        # data_df = data.to_pandas()
-        # processor = DataProcessor(**self._processor_args)
-        # output_df = processor.transform(data_df)
-        # outputs.append(output_df)
-        # e = datetime.now()
-        # tm_taken = str(e - s)
-        # print('[Data Processing]', round(e_index / self._nrows * 100, 1), '% complete in ', tm_taken)
-        # del processor
-        # del data_df
-        # del data
-
         final_output_df = pd.concat(outputs, axis=1)
         return final_output_df
 
@@ -97,7 +85,10 @@ class DataProcessor:
     def pandas_describe(df):
         output_df = df.quantile([0, 0.25, 0.5, 0.75, 1], axis=0)
         output_df.index = list(map(lambda x: 'Quant-' + str(x), output_df.index.tolist()))
-        return output_df
+        abs_mean_df = df.abs().mean().to_frame('abs_mean')
+        mean_df = df.mean().to_frame('mean')
+        std_df = df.std().to_frame('std')
+        return pd.concat([output_df, abs_mean_df.T, mean_df.T, std_df.T])
 
     @staticmethod
     def transform_chunk(signal_time_series_df: pd.DataFrame) -> pd.DataFrame:
@@ -121,29 +112,31 @@ class DataProcessor:
 
         df = pd.concat(temp_metrics)
         df.index.name = 'features'
+        # In total there are 6*
         return df
 
     def transform(self, X_df: pd.DataFrame):
-        # Work with noise
+        """
+        Args:
+            X_df: dataframe with each column being one data point. Rows are timestamps.
+        """
+        # Remove the smoothened version of the data so as to work with noise.
         if self._smoothing_window > 0:
             X_df = self.get_noise(X_df)
 
+        # stepsize many consequitive timestamps are compressed to form one timestamp.
+        # this will ensure we are left with self._steps many timestamps.
         stepsize = self._o_steps // self._steps
         transformed_data = []
         for s_tm_index in range(0, self._o_steps, stepsize):
             e_tm_index = s_tm_index + stepsize
-            # NOTE: dask was leading to memory leak somehow.
+            # NOTE: dask was leading to memory leak.
             #one_data_point = delayed(DataProcessor.transform_chunk)(X_df.iloc[s_tm_index:e_tm_index, :])
             one_data_point = DataProcessor.transform_chunk(X_df.iloc[s_tm_index:e_tm_index, :])
             transformed_data.append(one_data_point)
 
-
-#         transformed_data = dd.compute(
-#             *transformed_data,
-#             scheduler='processes',
-#             num_workers=self._num_processes,
-#         )
-#         self.cleanup_dask()
+        # transformed_data = dd.compute(*transformed_data, scheduler='processes', num_workers=self._num_processes)
+        # Add timestamp
         for ts in range(0, len(transformed_data)):
             transformed_data[ts]['ts'] = ts
 
