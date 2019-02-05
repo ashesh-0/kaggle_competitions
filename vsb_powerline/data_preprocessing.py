@@ -1,9 +1,12 @@
+import gc
 from typing import List
 from datetime import datetime
 import dask as dd
 import pandas as pd
 import pyarrow.parquet as pq
 from dask import delayed
+from dask.context import _globals
+from multiprocessing.dummy import Pool as ThreadPool
 
 
 class DataPipeline:
@@ -14,27 +17,56 @@ class DataPipeline:
     def __init__(
             self,
             parquet_fname: str,
-            data_processor,
-            concurrency: int = 500,
-            num_rows: int = 1782,
+            data_processor_args,
+            concurrency: int = 100,
+            num_rows: int = 8712,
     ):
         self._fname = parquet_fname
         self._concurrency = concurrency
         self._nrows = num_rows
-        self._processor = data_processor
+        self._processor_args = data_processor_args
+        self._thread_count = 4
+
+    @staticmethod
+    def run_one_chunk(arg_tuple):
+        fname, processor_args, start_row, end_row, num_rows = arg_tuple
+        cols = [str(i) for i in range(start_row, end_row)]
+        data = pq.read_pandas(fname, columns=cols)
+        data_df = data.to_pandas()
+        processor = DataProcessor(**processor_args)
+        output_df = processor.transform(data_df)
+        print(round(end_row / num_rows * 100, 2), '% Complete')
+        del processor
+        del data_df
+        del data
+        return output_df
 
     def run(self):
         outputs = []
-        s = datetime.now()
+
+        args_list = []
         for s_index in range(0, self._nrows, self._concurrency):
             e_index = s_index + self._concurrency
-            cols = [str(i) for i in range(s_index, e_index)]
-            data_df = pq.read_pandas(self._fname, columns=cols).to_pandas()
-            output_df = self._processor.transform(data_df)
-            outputs.append(output_df)
-            e = datetime.now()
-            tm_taken = str(e - s)
-            print('[Data Processing]', round(e_index / self._nrows * 100, 1), '% complete in ', tm_taken)
+            args_this_chunk = [self._fname, self._processor_args, s_index, e_index, self._nrows]
+            args_list.append(args_this_chunk)
+
+        pool = ThreadPool(self._thread_count)
+        outputs = pool.map(DataPipeline.run_one_chunk, args_list)
+        pool.close()
+        pool.join()
+
+        # data = pq.read_pandas(self._fname, columns=cols)
+        # data_df = data.to_pandas()
+        # processor = DataProcessor(**self._processor_args)
+        # output_df = processor.transform(data_df)
+        # outputs.append(output_df)
+        # e = datetime.now()
+        # tm_taken = str(e - s)
+        # print('[Data Processing]', round(e_index / self._nrows * 100, 1), '% complete in ', tm_taken)
+        # del processor
+        # del data_df
+        # del data
+
         final_output_df = pd.concat(outputs)
         return final_output_df
 
@@ -61,7 +93,9 @@ class DataProcessor:
         band pass filter is what is needed.
         """
         assert self._o_steps == X_df.shape[0], 'Expected len:{}, found:{}'.format(self._o_steps, len(X))
-        noise_df = X_df - X_df.rolling(self._smoothing_window, min_periods=1).mean()
+        smoothe_df = X_df.rolling(self._smoothing_window, min_periods=1).mean()
+        noise_df = X_df - smoothe_df
+        del smoothe_df
         return noise_df
 
     @staticmethod
@@ -101,18 +135,21 @@ class DataProcessor:
         transformed_data = []
         for s_tm_index in range(0, self._o_steps, stepsize):
             e_tm_index = s_tm_index + stepsize
-            one_data_point = delayed(DataProcessor.transform_chunk)(X_df.iloc[s_tm_index:e_tm_index, :])
-            # one_data_point = DataProcessor.transform_chunk(X_df.iloc[s_tm_index:e_tm_index, :])
+            # NOTE: dask was leading to memory leak somehow.
+            #one_data_point = delayed(DataProcessor.transform_chunk)(X_df.iloc[s_tm_index:e_tm_index, :])
+            one_data_point = DataProcessor.transform_chunk(X_df.iloc[s_tm_index:e_tm_index, :])
             transformed_data.append(one_data_point)
 
         # with dd.config.set(pool=ThreadPool(10), scheduler='threads'):
         # with dd.config.set(scheduler='single-threaded'):
-        transformed_data = dd.compute(
-            *transformed_data,
-            scheduler='processes',
-            num_workers=self._num_processes,
-        )
 
+
+#         transformed_data = dd.compute(
+#             *transformed_data,
+#             scheduler='processes',
+#             num_workers=self._num_processes,
+#         )
+#         self.cleanup_dask()
         for ts in range(0, len(transformed_data)):
             transformed_data[ts]['ts'] = ts
 
