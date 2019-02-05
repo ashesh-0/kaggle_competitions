@@ -1,5 +1,5 @@
 from typing import List
-
+from datetime import datetime
 import dask as dd
 import pandas as pd
 import pyarrow.parquet as pq
@@ -15,7 +15,7 @@ class DataPipeline:
             self,
             parquet_fname: str,
             data_processor,
-            concurrency: int = 100,
+            concurrency: int = 500,
             num_rows: int = 1782,
     ):
         self._fname = parquet_fname
@@ -25,13 +25,16 @@ class DataPipeline:
 
     def run(self):
         outputs = []
+        s = datetime.now()
         for s_index in range(0, self._nrows, self._concurrency):
             e_index = s_index + self._concurrency
             cols = [str(i) for i in range(s_index, e_index)]
             data_df = pq.read_pandas(self._fname, columns=cols).to_pandas()
             output_df = self._processor.transform(data_df)
             outputs.append(output_df)
-            print('[Data Processing]', round(e_index / self._nrows * 100, 1), '% complete')
+            e = datetime.now()
+            tm_taken = str(e - s)
+            print('[Data Processing]', round(e_index / self._nrows * 100, 1), '% complete in ', tm_taken)
         final_output_df = pd.concat(outputs)
         return final_output_df
 
@@ -62,21 +65,27 @@ class DataProcessor:
         return noise_df
 
     @staticmethod
+    def pandas_describe(df):
+        output_df = df.quantile([0, 0.25, 0.5, 0.75, 1], axis=0)
+        output_df.index = list(map(lambda x: 'Quant-' + str(x), output_df.index.tolist()))
+        return output_df
+
+    @staticmethod
     def transform_chunk(signal_time_series_df: pd.DataFrame) -> pd.DataFrame:
         """
         It sqashes the time series to a single point multi featured vector.
         """
         df = signal_time_series_df
         # mean, var, percentile.
-        # NOTE describe() is the costliest computation with 95% time of the function.
-        metrics_df = df.describe()
+        # NOTE pandas.describe() is the costliest computation with 95% time of the function.
+        metrics_df = DataProcessor.pandas_describe(df)
 
         metrics_df.index = list(map(lambda x: 'signal_' + x, metrics_df.index))
         temp_metrics = [metrics_df]
 
         for smoothener in [1, 2, 4, 8, 16, 32]:
             diff_df = df.rolling(smoothener).mean()[::smoothener].diff().abs()
-            temp_df = diff_df.describe()
+            temp_df = DataProcessor.pandas_describe(diff_df)
 
             temp_df.index = list(map(lambda x: 'diff_smoothend_by_' + str(smoothener) + ' ' + x, temp_df.index))
             temp_metrics.append(temp_df)
