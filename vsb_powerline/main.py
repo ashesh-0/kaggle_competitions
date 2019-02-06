@@ -7,4 +7,5 @@ if __name__ == '__main__':
     # parser = argparse.ArgumentParser()
     dp = DataProcessor(150, 800000)
     df = pd.read_csv('data/raw_train.csv', compression='gzip')
-    dp.transform(df)
+    output_df = dp.transform(df)
+    output_df.to_csv('data/transformed_train.csv', compression='gzip')
