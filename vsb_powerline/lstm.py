@@ -1,10 +1,11 @@
+import numpy as np
 import pandas as pd
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint
 from keras.models import Model
 from keras.layers import Input, LSTM, Dense
-from sklearn.metrics import matthews_corrcoef
 from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import matthews_corrcoef
 
 
 # It is the official metric used in this competition
@@ -35,55 +36,69 @@ class LSTModel:
     def __init__(self, units, dense_count):
         self._units = units
         self._dense_c = dense_count
-        self._data_dir = '/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/'
-        self._data_fname = 'transformed_train.csv'
-        self._meta_fname = 'metadata_train.csv'
+        self._data_fname = '/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/transformed_train.csv'
+        self._meta_fname = '/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/metadata_train.csv'
 
         self._n_splits = 5
         self._feature_c = None
         self._ts_c = None
+        # a value between 0 and 1. a prediction greater than this value is considered as 1.
+        self.threshold = None
 
     def get_model(self):
         inp = Input(shape=(
             self._ts_c,
             self._feature_c,
         ))
-        x = LSTM(self._units, return_sequences=True)(inp)
-        x = LSTM(self._units // 2, return_sequences=False)(x)
+        x = LSTM(self._units, return_sequences=False)(inp)
+        # x = LSTM(self._units // 2, return_sequences=False)(x)
         x = Dense(self._dense_c, activation='relu')(x)
         x = Dense(1, activation='sigmoid')(x)
         model = Model(inputs=inp, outputs=x)
         model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[matthews_correlation])
         return model
 
-    def get_processed_train_df(self):
-        fname = self._data_dir + self._data_fname
-        processed_train_df = pd.read_csv(fname, compression='gzip', index_col=[0, 1])
-        processed_train_df = processed_train_df.T
-        processed_train_df = processed_train_df.swaplevel(axis=1).sort_index(axis=1)
-        processed_train_df = processed_train_df.drop('Unnamed: 0', axis=0)
-        processed_train_df.index = list(map(int, processed_train_df.index))
-        return processed_train_df.sort_index(axis=0)
+    def get_processed_data_df(self, fname: str):
+        processed_data_df = pd.read_csv(fname, compression='gzip', index_col=[0, 1])
+        processed_data_df = processed_data_df.T
+        processed_data_df = processed_data_df.swaplevel(axis=1).sort_index(axis=1)
+        if 'Unnamed: 0' in processed_data_df.index:
+            processed_data_df = processed_data_df.drop('Unnamed: 0', axis=0)
 
-    def get_y(self):
-        fname = self._data_dir + self._meta_fname
+        processed_data_df.index = list(map(int, processed_data_df.index))
+        return processed_data_df.sort_index(axis=0)
+
+    def get_y_df(self):
+        fname = self._meta_fname
         df = pd.read_csv(fname)
         return df.set_index('signal_id')
+
+    def get_X_df(self, fname):
+        processed_data_df = self.get_processed_data_df(fname)
+        # NOTE: there are 8 columns which are being zero. one needs to fix it.
+        assert processed_data_df.isna().any(axis=0).sum() == 8
+        assert processed_data_df.isna().all(axis=0).sum() == 8
+
+        processed_data_df = processed_data_df.fillna(0)
+        assert not processed_data_df.isna().any().any(), 'Training data has nan'
+        return processed_data_df
+
+    def get_X(self, fname):
+        """
+        Used exclusively for test df.
+        """
+        df = self.get_X_df(fname)
+        examples_c = df.shape[0]
+        X = df.values.reshape(examples_c, self._ts_c, self._feature_c)
+        return X
 
     def get_X_y(self):
         """
         X.shape should be: (#examples,#ts,#features)
         y.shape should be: (#examples,)
         """
-        processed_train_df = self.get_processed_train_df()
-        # NOTE: there are 8 columns which are being zero. one needs to fix it.
-        assert processed_train_df.isna().any(axis=0).sum() == 8
-        assert processed_train_df.isna().all(axis=0).sum() == 8
-
-        processed_train_df = processed_train_df.fillna(0)
-        assert not processed_train_df.isna().any().any(), 'Training data has nan'
-
-        y_df = self.get_y()
+        processed_train_df = self.get_X_df(self._data_fname)
+        y_df = self.get_y_df()
         y_df = y_df.loc[processed_train_df.index]
 
         examples_c = processed_train_df.shape[0]
@@ -101,15 +116,40 @@ class LSTModel:
         assert y.shape == (examples_c, )
         return X, y
 
-    def train(self):
+    def predict(self, fname: str):
+        X = self.get_X(fname)
+        pred_array = []
+        for split_index in range(self._n_splits):
+            weight_fname = 'weights_{}.h5'.format(split_index)
+            model = self.get_model()
+            model.load_weights(weight_fname)
+            pred_array.append(model.predict(X, batch_size=128))
+
+        # Take average value over different models.
+        pred = np.mean(np.array(pred_array), axis=0)
+        assert pred.shape[0] == X.shape[0]
+
+        return (pred > self.threshold).astype(int)
+
+    def fit_threshold(self, prediction, actual):
+        best_score = -1
+        self.threshold = None
+        for threshold in np.linspace(0.01, 0.9, 1000):
+            score = matthews_corrcoef(actual, (prediction > threshold).astype(np.float64))
+            if score > best_score:
+                best_score = score
+                self.threshold = threshold
+        print('Matthews correlation on dev set is ', best_score, ' with threshold:', self.threshold)
+
+    def train(self, batch_size=128, epoch=50):
         X, y = self.get_X_y()
         print('X shape', X.shape)
         print('Y shape', y.shape)
 
         splits = list(StratifiedKFold(n_splits=self._n_splits, shuffle=True).split(X, y))
 
-        preds_val = []
-        y_val = []
+        preds_array = []
+        y_array = []
         # Then, iteract with each fold
         # If you dont know, enumerate(['a', 'b', 'c']) returns [(0, 'a'), (1, 'b'), (2, 'c')]
         for idx, (train_idx, val_idx) in enumerate(splits):
@@ -123,7 +163,6 @@ class LSTModel:
             print('Train Y shape', train_y.shape)
             print('Val y shape', val_y.shape)
 
-            # instantiate the model for this fold
             model = self.get_model()
             print(model.summary())
             # This checkpoint helps to avoid overfitting. It just save the weights of the model if it delivered an
@@ -138,15 +177,26 @@ class LSTModel:
             )
 
             # Train, train, train
-            model.fit(train_X, train_y, batch_size=20, epochs=100, validation_data=[val_X, val_y], callbacks=[ckpt])
+            model.fit(
+                train_X,
+                train_y,
+                batch_size=batch_size,
+                epochs=epoch,
+                validation_data=[val_X, val_y],
+                callbacks=[ckpt],
+            )
+
             # loads the best weights saved by the checkpoint
             model.load_weights('weights_{}.h5'.format(idx))
             # Add the predictions of the validation to the list preds_val
-            preds_val.append(model.predict(val_X, batch_size=20))
-            # and the val true y
-            y_val.append(val_y)
+            preds_array.append(model.predict(val_X, batch_size=20))
+            y_array.append(val_y)
+
+        prediction = np.concatenate(preds_array)
+        actual = np.concatenate(y_array)
+        self.fit_threshold(prediction, actual)
 
 
 if __name__ == '__main__':
     model = LSTModel(64, 16)
-    model.train()
+    model.train(epoch=5)
