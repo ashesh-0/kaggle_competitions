@@ -33,11 +33,17 @@ def matthews_correlation(y_true, y_pred):
 
 
 class LSTModel:
-    def __init__(self, units, dense_count):
+    def __init__(
+            self,
+            units,
+            dense_count,
+            train_fname='/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/transformed_train.csv',
+            meta_train_fname='/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/metadata_train.csv',
+    ):
         self._units = units
         self._dense_c = dense_count
-        self._data_fname = '/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/transformed_train.csv'
-        self._meta_fname = '/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/metadata_train.csv'
+        self._data_fname = train_fname
+        self._meta_fname = meta_train_fname
 
         self._n_splits = 5
         self._feature_c = None

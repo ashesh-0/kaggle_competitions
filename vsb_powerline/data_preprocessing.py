@@ -75,7 +75,8 @@ class DataProcessor:
         TODO: we need to keep the noise. However, we don't want very high freq jitter.
         band pass filter is what is needed.
         """
-        assert self._o_steps == X_df.shape[0], 'Expected len:{}, found:{}'.format(self._o_steps, len(X))
+        msg = 'Expected len:{}, found:{}'.format(self._o_steps, len(X_df))
+        assert self._o_steps == X_df.shape[0], msg
         smoothe_df = X_df.rolling(self._smoothing_window, min_periods=1).mean()
         noise_df = X_df - smoothe_df
         del smoothe_df
