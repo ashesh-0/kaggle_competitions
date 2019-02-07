@@ -89,15 +89,6 @@ class LSTModel:
         assert not processed_data_df.isna().any().any(), 'Training data has nan'
         return processed_data_df
 
-    def get_X(self, fname):
-        """
-        Used exclusively for test df.
-        """
-        df = self.get_X_df(fname)
-        examples_c = df.shape[0]
-        X = df.values.reshape(examples_c, self._ts_c, self._feature_c)
-        return X
-
     def get_X_y(self):
         """
         X.shape should be: (#examples,#ts,#features)
@@ -123,7 +114,13 @@ class LSTModel:
         return X, y
 
     def predict(self, fname: str):
-        X = self.get_X(fname)
+        """
+        Using the self._n_splits(5) models, it returns a pandas.Series with values belonging to {0,1}
+        """
+        df = self.get_X_df(fname)
+        examples_c = df.shape[0]
+        X = df.values.reshape(examples_c, self._ts_c, self._feature_c)
+
         pred_array = []
         for split_index in range(self._n_splits):
             weight_fname = 'weights_{}.h5'.format(split_index)
@@ -135,7 +132,8 @@ class LSTModel:
         pred = np.mean(np.array(pred_array), axis=0)
         assert pred.shape[0] == X.shape[0]
 
-        return (pred > self.threshold).astype(int)
+        pred = (pred > self.threshold).astype(int)
+        return pd.Series(pred, index=df.index)
 
     def fit_threshold(self, prediction, actual):
         best_score = -1
