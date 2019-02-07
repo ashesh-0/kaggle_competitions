@@ -13,12 +13,14 @@ class DataPipeline:
             self,
             parquet_fname: str,
             data_processor_args,
+            start_row_num: int,
+            num_rows: int,
             concurrency: int = 100,
-            num_rows: int = 8712,
     ):
         self._fname = parquet_fname
         self._concurrency = concurrency
         self._nrows = num_rows
+        self._start_row_num = start_row_num
         self._processor_args = data_processor_args
         self._process_count = 4
 
@@ -40,7 +42,7 @@ class DataPipeline:
         outputs = []
 
         args_list = []
-        for s_index in range(0, self._nrows, self._concurrency):
+        for s_index in range(self._start_row_num, self._start_row_num + self._nrows, self._concurrency):
             e_index = s_index + self._concurrency
             args_this_chunk = [self._fname, self._processor_args, s_index, e_index, self._nrows]
             args_list.append(args_this_chunk)
