@@ -32,7 +32,7 @@ class DataPipeline:
         data_df = data.to_pandas()
         processor = DataProcessor(**processor_args)
         output_df = processor.transform(data_df)
-        print(round(end_row / num_rows * 100, 2), '% Complete')
+        print('Another ', round((end_row - start_row) / num_rows * 100, 2), '% Complete')
         del processor
         del data_df
         del data

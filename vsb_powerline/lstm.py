@@ -79,22 +79,96 @@ class LSTModel:
         df = pd.read_csv(fname)
         return df.set_index('signal_id')
 
-    def get_X_df(self, fname):
+    def add_phase_data(self, processed_data_df, meta_fname):
+        print('Phase data is about to be added')
+        metadata_df = pd.read_csv(meta_fname).set_index('signal_id')
+        processed_data_df = processed_data_df.join(metadata_df[['id_measurement']], how='left')
+        assert not processed_data_df.isna().any().any()
+
+        # pandas does not have a cyclic shift facility. therefore copying it.
+        temp_df = pd.concat([processed_data_df, processed_data_df])
+        grp = temp_df.groupby('id_measurement')
+
+        data_1 = grp.shift(0)
+        data_1 = data_1[~data_1.index.duplicated(keep='first')]
+
+        data_2 = grp.shift(-1)
+        data_2 = data_2[~data_2.index.duplicated(keep='first')]
+
+        data_3 = grp.shift(-2)
+        data_3 = data_3[~data_3.index.duplicated(keep='first')]
+        del grp
+        del temp_df
+
+        assert set(data_1.index.tolist()) == (set(data_2.index.tolist()))
+        assert set(data_1.index.tolist()) == (set(data_3.index.tolist()))
+
+        # change indicators name to ensure uniqueness of columns
+        feat_names = ['Phase1-' + e for e in data_1.columns.levels[1].tolist()]
+        data_1.columns.set_levels(feat_names, level=1, inplace=True)
+
+        feat_names = ['Phase2-' + e for e in data_2.columns.levels[1].tolist()]
+        data_2.columns.set_levels(feat_names, level=1, inplace=True)
+
+        feat_names = ['Phase3-' + e for e in data_3.columns.levels[1].tolist()]
+        data_3.columns.set_levels(feat_names, level=1, inplace=True)
+
+        processed_data_df = pd.concat([data_1, data_2, data_3], axis=1)
+        print(processed_data_df.shape)
+        print('Phase data added')
+        return processed_data_df
+
+    def get_X_df(self, fname, meta_fname):
         processed_data_df = self.get_processed_data_df(fname)
+
         # NOTE: there are 8 columns which are being zero. one needs to fix it.
         assert processed_data_df.isna().any(axis=0).sum() == 8
         assert processed_data_df.isna().all(axis=0).sum() == 8
 
         processed_data_df = processed_data_df.fillna(0)
+        processed_data_df = self.add_phase_data(processed_data_df, meta_fname)
         assert not processed_data_df.isna().any().any(), 'Training data has nan'
         return processed_data_df
+
+    def get_X_in_parts_df(self, fname, meta_fname):
+        processed_data_df = self.get_processed_data_df(fname)
+
+        # NOTE: there are 8 columns which are being zero. one needs to fix it.
+        assert processed_data_df.isna().any(axis=0).sum() == 8
+        assert processed_data_df.isna().all(axis=0).sum() == 8
+
+        processed_data_df = processed_data_df.fillna(0)
+        meta_df = pd.read_csv(meta_fname)
+        chunksize = 2 * 999
+        s_index = 0
+        e_index = chunksize
+        sz = processed_data_df.shape[0]
+        while e_index < sz:
+            last_accesible_id = meta_df.iloc[e_index - 1]['id_measurement']
+            first_inaccesible_id = meta_df.iloc[e_index]['id_measurement']
+            while e_index < sz and last_accesible_id == first_inaccesible_id:
+                e_index += 1
+                last_accesible_id = meta_df.iloc[e_index - 1]['id_measurement']
+                first_inaccesible_id = meta_df.iloc[e_index]['id_measurement']
+
+            # making all three phases data available.
+            data_df = self.add_phase_data(processed_data_df.iloc[s_index:e_index], meta_fname)
+            assert not data_df.isna().any().any(), 'Training data has nan'
+            s_index = e_index
+            e_index = s_index + chunksize
+            print('Completed Test data preprocessing', round(e_index / sz * 100), '%')
+            yield data_df
+
+        data_df = self.add_phase_data(processed_data_df.iloc[s_index:], meta_fname)
+        assert not data_df.isna().any().any(), 'Training data has nan'
+        yield data_df
 
     def get_X_y(self):
         """
         X.shape should be: (#examples,#ts,#features)
         y.shape should be: (#examples,)
         """
-        processed_train_df = self.get_X_df(self._data_fname)
+        processed_train_df = self.get_X_df(self._data_fname, self._meta_fname)
         y_df = self.get_y_df()
         y_df = y_df.loc[processed_train_df.index]
 
@@ -113,27 +187,31 @@ class LSTModel:
         assert y.shape == (examples_c, )
         return X, y
 
-    def predict(self, fname: str):
+    def predict(self, fname: str, meta_fname):
         """
         Using the self._n_splits(5) models, it returns a pandas.Series with values belonging to {0,1}
         """
-        df = self.get_X_df(fname)
-        examples_c = df.shape[0]
-        X = df.values.reshape(examples_c, self._ts_c, self._feature_c)
+        output = []
+        output_index = []
+        for df in self.get_X_in_parts_df(fname, meta_fname):
+            examples_c = df.shape[0]
+            X = df.values.reshape(examples_c, self._ts_c, self._feature_c)
 
-        pred_array = []
-        for split_index in range(self._n_splits):
-            weight_fname = 'weights_{}.h5'.format(split_index)
-            model = self.get_model()
-            model.load_weights(weight_fname)
-            pred_array.append(model.predict(X, batch_size=128))
+            pred_array = []
+            for split_index in range(self._n_splits):
+                weight_fname = 'weights_{}.h5'.format(split_index)
+                model = self.get_model()
+                model.load_weights(weight_fname)
+                pred_array.append(model.predict(X, batch_size=128))
 
-        # Take average value over different models.
-        pred = np.mean(np.array(pred_array), axis=0)
-        assert pred.shape[0] == X.shape[0]
+            # Take average value over different models.
+            pred = np.mean(np.array(pred_array), axis=0)
+            assert pred.shape[0] == X.shape[0]
 
-        pred = (pred > self.threshold).astype(int)
-        return pd.Series(pred, index=df.index)
+            pred = (pred > self.threshold).astype(int)
+            output.append(pred)
+            output_index.append(df.index.tolist())
+        return pd.Series(np.squeeze(np.concatenate(output)), index=np.concatenate(output_index))
 
     def fit_threshold(self, prediction, actual):
         best_score = -1
