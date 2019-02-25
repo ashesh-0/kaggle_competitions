@@ -2,10 +2,11 @@ import numpy as np
 import pandas as pd
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint
+from keras.layers import (Bidirectional, Dense, Input, CuDNNLSTM, Activation, BatchNormalization, LeakyReLU)
 from keras.models import Model
-from keras.layers import Input, LSTM, Dense
-from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import matthews_corrcoef
+from sklearn.model_selection import StratifiedKFold
+from keras import regularizers
 
 
 # It is the official metric used in this competition
@@ -56,9 +57,19 @@ class LSTModel:
             self._ts_c,
             self._feature_c,
         ))
-        x = LSTM(self._units, return_sequences=False)(inp)
-        # x = LSTM(self._units // 2, return_sequences=False)(x)
-        x = Dense(self._dense_c, activation='relu')(x)
+        x = CuDNNLSTM(
+            self._units,
+            return_sequences=False,
+            kernel_regularizer=regularizers.l1(0.01),
+            # activity_regularizer=regularizers.l1(0.01),
+            # bias_regularizer=regularizers.l1(0.01)
+            )(inp)
+
+        #         x = Bidirectional(CuDNNLSTM(self._units, return_sequences=False))(inp)
+        #         x = Bidirectional(LSTM(self._units // 2, return_sequences=False))(x)
+        x = Dense(self._dense_c)(x)
+        x = BatchNormalization()(x)
+        x = LeakyReLU()(x)
         x = Dense(1, activation='sigmoid')(x)
         model = Model(inputs=inp, outputs=x)
         model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[matthews_correlation])
@@ -205,10 +216,13 @@ class LSTModel:
                 pred_array.append(model.predict(X, batch_size=128))
 
             # Take average value over different models.
+            pred_array = np.array(pred_array).reshape(len(pred_array), -1)
+            pred_array = (pred_array > self.threshold).astype(int)
             pred = np.mean(np.array(pred_array), axis=0)
+            # majority prediction
+            pred = (pred > 0.5).astype(int)
             assert pred.shape[0] == X.shape[0]
 
-            pred = (pred > self.threshold).astype(int)
             output.append(pred)
             output_index.append(df.index.tolist())
         return pd.Series(np.squeeze(np.concatenate(output)), index=np.concatenate(output_index))
@@ -277,8 +291,3 @@ class LSTModel:
         prediction = np.concatenate(preds_array)
         actual = np.concatenate(y_array)
         self.fit_threshold(prediction, actual)
-
-
-if __name__ == '__main__':
-    model = LSTModel(64, 16)
-    model.train(epoch=5)
