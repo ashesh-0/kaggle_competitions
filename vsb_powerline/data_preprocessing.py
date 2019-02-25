@@ -94,7 +94,25 @@ class DataProcessor:
         """
         Returns quantiles of peak width, height, distances from next peak.
         """
-        peak_indices, data_dict = find_peaks(ser, threshold=threshold, width=1)
+        maxima_peak_indices, maxima_data_dict = find_peaks(ser, threshold=threshold, width=1)
+        maxima_width = maxima_data_dict['widths']
+        maxima_height = maxima_data_dict['prominences']
+
+        minima_peak_indices, minima_data_dict = find_peaks(-1 * ser, threshold=threshold, width=1)
+        minima_width = minima_data_dict['widths']
+        minima_height = minima_data_dict['prominences']
+
+        peak_indices = np.concatenate([maxima_peak_indices, minima_peak_indices])
+        peak_width = np.concatenate([maxima_width, minima_width])
+        peak_height = np.concatenate([maxima_height, minima_height])
+        maxima_minima = np.concatenate([np.array([1] * len(maxima_height)), np.array([-1] * len(minima_height))])
+
+        index_ordering = np.argsort(peak_indices)
+        peak_width = peak_width[index_ordering]
+        peak_height = peak_height[index_ordering]
+        peak_indices = peak_indices[index_ordering]
+        maxima_minima = maxima_minima[index_ordering]
+
         if len(peak_indices) == 0:
             # no peaks
             width_stats = [0] * len(quantiles)
@@ -103,18 +121,15 @@ class DataProcessor:
         else:
             peak_distances = np.diff(peak_indices)
 
-            peak_width = data_dict['widths']
             peak_width[peak_width > 100] = 100
-
-            peak_height = data_dict['prominences']
 
             width_stats = np.quantile(peak_width, quantiles)
             height_stats = np.quantile(peak_height, quantiles)
 
             # for just one peak, distance will be empty array.
-            if len(peak_distances)==0:
-                assert len(peak_indices) ==1
-                distance_stats = [ser.shape[0]]* len(quantiles)
+            if len(peak_distances) == 0:
+                assert len(peak_indices) == 1
+                distance_stats = [ser.shape[0]] * len(quantiles)
             else:
                 distance_stats = np.quantile(peak_distances, quantiles)
 
