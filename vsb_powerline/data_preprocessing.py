@@ -67,6 +67,10 @@ class DataProcessor:
             original_time_steps: int,
             peak_threshold: int,
             smoothing_window: int = 10,
+            remove_corona=False,
+            corona_max_distance=5,
+            corona_max_height_ratio=0.5,
+            corona_cleanup_distance=10,
             num_processes: int = 7,
     ):
         self._o_steps = original_time_steps
@@ -77,6 +81,10 @@ class DataProcessor:
         self._smoothing_window = smoothing_window
         self._num_processes = num_processes
         self._peak_threshold = peak_threshold
+        self._remove_corona = remove_corona
+        self._corona_max_distance = corona_max_distance
+        self._corona_max_height_ratio = corona_max_height_ratio
+        self._corona_cleanup_distance = corona_cleanup_distance
 
     def get_noise(self, X_df: pd.DataFrame):
         """
@@ -180,11 +188,11 @@ class DataProcessor:
         ser = ser.copy()
         for start_index, end_index in pairs:
             smoothing_start_index = max(0, start_index - 1)
-            smoothing_end_index = min(end_index + 1 + corona_cleanup_distance, ser.index[-1])
-            start_val = ser.loc[smoothing_start_index]
-            end_val = ser.loc[smoothing_end_index]
+            smoothing_end_index = min(end_index + corona_cleanup_distance, ser.index[-1])
+            start_val = ser.iloc[smoothing_start_index]
+            end_val = ser.iloc[smoothing_end_index]
             count = smoothing_end_index - smoothing_start_index
-            ser.loc[smoothing_start_index:smoothing_end_index] = np.linspace(start_val, end_val, count)
+            ser.iloc[smoothing_start_index:smoothing_end_index] = np.linspace(start_val, end_val, count)
 
         return ser
 
@@ -279,6 +287,18 @@ class DataProcessor:
         # Remove the smoothened version of the data so as to work with noise.
         if self._smoothing_window > 0:
             X_df = self.get_noise(X_df)
+
+        def cleanup_corona(x: pd.Series):
+            return DataProcessor.remove_corona_discharge(
+                x,
+                self._peak_threshold,
+                self._corona_max_distance,
+                self._corona_max_height_ratio,
+                self._corona_cleanup_distance,
+            )
+
+        if self._remove_corona:
+            X_df = X_df.apply(cleanup_corona)
 
         # stepsize many consequitive timestamps are compressed to form one timestamp.
         # this will ensure we are left with self._steps many timestamps.

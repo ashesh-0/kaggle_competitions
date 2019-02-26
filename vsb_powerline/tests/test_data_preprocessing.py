@@ -30,3 +30,23 @@ def test_corona_identification():
     assert pairs[0][1] == 3
     assert pairs[1][0] == 6
     assert pairs[1][1] == 8
+
+
+def test_remove_corona_discharge():
+    ser = pd.Series([1, 14, 2, -15, 3, 1, 4, 5, -26, 1, 5, 30, 1])
+    ser.index += 100
+    peak_threshold = 8
+    corona_max_distance = 3
+    corona_max_height_ratio = 0.5
+    corona_cleanup_distance = 2
+
+    cleaned_ser = DataProcessor.remove_corona_discharge(
+        ser,
+        peak_threshold,
+        corona_max_distance,
+        corona_max_height_ratio,
+        corona_cleanup_distance,
+    )
+    assert cleaned_ser.iloc[0] == ser.iloc[0]
+    assert all(cleaned_ser.iloc[3 + corona_cleanup_distance:] == ser.iloc[3 + corona_cleanup_distance:])
+    assert all(cleaned_ser.iloc[1:3 + corona_cleanup_distance:] == 1)
