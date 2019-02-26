@@ -92,11 +92,11 @@ class DataProcessor:
 
     @staticmethod
     def peak_data(ser: pd.Series, threshold: float, quantiles=[0, 0.25, 0.5, 0.75, 1]) -> Dict[str, np.array]:
-        maxima_peak_indices, maxima_data_dict = find_peaks(ser, threshold=threshold, width=1)
+        maxima_peak_indices, maxima_data_dict = find_peaks(ser, threshold=threshold, width=0)
         maxima_width = maxima_data_dict['widths']
         maxima_height = maxima_data_dict['prominences']
 
-        minima_peak_indices, minima_data_dict = find_peaks(-1 * ser, threshold=threshold, width=1)
+        minima_peak_indices, minima_data_dict = find_peaks(-1 * ser, threshold=threshold, width=0)
         minima_width = minima_data_dict['widths']
         minima_height = minima_data_dict['prominences']
 
@@ -125,12 +125,19 @@ class DataProcessor:
             corona_max_height_ratio: float,
     ) -> List[Tuple[int, int]]:
         data = DataProcessor.peak_data(ser, peak_threshold)
+        print(data)
         corona_indices = []
         for index, data_index in enumerate(data['indices']):
             if index < len(data['indices']) - 1:
                 opposite_peaks = data['maxima_minima'][index] * data['maxima_minima'][index + 1] == -1
                 nearby_peaks = data['indices'][index + 1] - data['indices'][index] < corona_max_distance
-                similar_height = data['height'][index + 1] / data['height'][index] > corona_max_height_ratio
+
+                # for height ratio, divide smaller by larger height
+                h1 = data['height'][index]
+                h2 = data['height'][index + 1]
+                height_ratio = (h1 / h2 if h1 < h2 else h2 / h1)
+                similar_height = height_ratio > corona_max_height_ratio
+                print(index, opposite_peaks, nearby_peaks, similar_height, h1, h2)
                 if opposite_peaks and nearby_peaks and similar_height:
                     corona_indices.append((data_index, data['indices'][index + 1]))
         return corona_indices
@@ -251,7 +258,6 @@ class DataProcessor:
 
         df = pd.concat(temp_metrics)
         df.index.name = 'features'
-        # In total there are 6*
         return df
 
     def transform(self, X_df: pd.DataFrame):
