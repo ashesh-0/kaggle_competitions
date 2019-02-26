@@ -1,3 +1,4 @@
+from typing import Dict, List, Tuple
 from multiprocessing import Pool
 from scipy.signal import find_peaks
 import numpy as np
@@ -90,10 +91,7 @@ class DataProcessor:
         return noise_df
 
     @staticmethod
-    def peak_stats(ser: pd.Series, threshold, quantiles=[0, 0.25, 0.5, 0.75, 1]):
-        """
-        Returns quantiles of peak width, height, distances from next peak.
-        """
+    def peak_data(ser: pd.Series, threshold: float, quantiles=[0, 0.25, 0.5, 0.75, 1]) -> Dict[str, np.array]:
         maxima_peak_indices, maxima_data_dict = find_peaks(ser, threshold=threshold, width=1)
         maxima_width = maxima_data_dict['widths']
         maxima_height = maxima_data_dict['prominences']
@@ -112,6 +110,75 @@ class DataProcessor:
         peak_height = peak_height[index_ordering]
         peak_indices = peak_indices[index_ordering]
         maxima_minima = maxima_minima[index_ordering]
+        return {
+            'width': peak_width,
+            'height': peak_height,
+            'maxima_minima': maxima_minima,
+            'indices': peak_indices,
+        }
+
+    @staticmethod
+    def corona_discharge_index_pairs(
+            ser: pd.Series,
+            peak_threshold: float,
+            corona_max_distance: int,
+            corona_max_height_ratio: float,
+    ) -> List[Tuple[int, int]]:
+        data = DataProcessor.peak_data(ser, peak_threshold)
+        corona_indices = []
+        for index, data_index in enumerate(data['indices']):
+            if index < len(data['indices']) - 1:
+                opposite_peaks = data['maxima_minima'][index] * data['maxima_minima'][index + 1] == -1
+                nearby_peaks = data['indices'][index + 1] - data['indices'][index] < corona_max_distance
+                similar_height = data['height'][index + 1] / data['height'][index] > corona_max_height_ratio
+                if opposite_peaks and nearby_peaks and similar_height:
+                    corona_indices.append((data_index, data['indices'][index + 1]))
+        return corona_indices
+
+    @staticmethod
+    def remove_corona_discharge(
+            ser: pd.Series,
+            peak_threshold: float,
+            corona_max_distance: int,
+            corona_max_height_ratio: float,
+            corona_cleanup_distance: int,
+    ) -> pd.Series:
+        """
+        Args:
+            ser: time series data.
+            peak_threshold: for detecting peaks, if elevation is more than this value, then consider it a peak.
+            corona_max_distance: maximum distance between consequitive alternative peaks for it to be a corona discharge.
+            corona_max_height_ratio: the alternate peaks should have similar peak heights.
+            corona_cleanup_distance: how many indices after the corona discharge should the data be removed.
+        Returns:
+            ser: cleaned up time series data.
+        """
+        pairs = DataProcessor.corona_discharge_index_pairs(
+            ser,
+            peak_threshold,
+            corona_max_distance,
+            corona_max_height_ratio,
+        )
+        ser = ser.copy()
+        for start_index, end_index in pairs:
+            smoothing_start_index = max(0, start_index - 1)
+            smoothing_end_index = min(end_index + 1 + corona_cleanup_distance, ser.index[-1])
+            start_val = ser.loc[smoothing_start_index]
+            end_val = ser.loc[smoothing_end_index]
+            count = smoothing_end_index - smoothing_start_index
+            ser.loc[smoothing_start_index:smoothing_end_index] = np.linspace(start_val, end_val, count)
+
+        return ser
+
+    @staticmethod
+    def peak_stats(ser: pd.Series, threshold, quantiles=[0, 0.25, 0.5, 0.75, 1]):
+        """
+        Returns quantiles of peak width, height, distances from next peak.
+        """
+        data = DataProcessor.peak_data(ser, threshold, quantiles=quantiles)
+        peak_indices = data['indices']
+        peak_width = data['width']
+        peak_height = data['height']
 
         if len(peak_indices) == 0:
             # no peaks
