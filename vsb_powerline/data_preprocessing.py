@@ -284,9 +284,6 @@ class DataProcessor:
         Args:
             X_df: dataframe with each column being one data point. Rows are timestamps.
         """
-        # Remove the smoothened version of the data so as to work with noise.
-        if self._smoothing_window > 0:
-            X_df = self.get_noise(X_df)
 
         def cleanup_corona(x: pd.Series):
             return DataProcessor.remove_corona_discharge(
@@ -297,8 +294,13 @@ class DataProcessor:
                 self._corona_cleanup_distance,
             )
 
+        # Corona removed.
         if self._remove_corona:
             X_df = X_df.apply(cleanup_corona)
+
+        # Remove the smoothened version of the data so as to work with noise.
+        if self._smoothing_window > 0:
+            X_df = self.get_noise(X_df)
 
         # stepsize many consequitive timestamps are compressed to form one timestamp.
         # this will ensure we are left with self._steps many timestamps.

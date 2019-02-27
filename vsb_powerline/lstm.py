@@ -49,6 +49,9 @@ class LSTModel:
         self._n_splits = 5
         self._feature_c = None
         self._ts_c = None
+
+        # normalization is done using this.
+        self._scale_df = None
         # a value between 0 and 1. a prediction greater than this value is considered as 1.
         self.threshold = None
 
@@ -63,7 +66,7 @@ class LSTModel:
             kernel_regularizer=regularizers.l1(0.01),
             # activity_regularizer=regularizers.l1(0.01),
             # bias_regularizer=regularizers.l1(0.01)
-            )(inp)
+        )(inp)
 
         #         x = Bidirectional(CuDNNLSTM(self._units, return_sequences=False))(inp)
         #         x = Bidirectional(LSTM(self._units // 2, return_sequences=False))(x)
@@ -168,11 +171,28 @@ class LSTModel:
             s_index = e_index
             e_index = s_index + chunksize
             print('Completed Test data preprocessing', round(e_index / sz * 100), '%')
-            yield data_df
+            yield self.normalize(data_df)
 
         data_df = self.add_phase_data(processed_data_df.iloc[s_index:], meta_fname)
         assert not data_df.isna().any().any(), 'Training data has nan'
-        yield data_df
+        yield self.normalize(data_df)
+
+    def set_scale(self, df):
+        """
+        scale is computed over timestamp and examples. For each feature, there is a real number.
+        scale is used to normalize the input.
+        Args:
+            df: In columns, level 0 is timestamp. level 1 is features. Index is example axis
+        """
+        self._scale_df = df.groupby(level=1, axis=1).max().max().abs()
+        self._scale_df[self._scale_df == 0] = 1
+
+    def normalize(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Args:
+            df: In columns, level 0 is timestamp. level 1 is features. Index is example axis
+        """
+        return df.divide(self._scale_df, level=1, axis=1)
 
     def get_X_y(self):
         """
@@ -180,6 +200,9 @@ class LSTModel:
         y.shape should be: (#examples,)
         """
         processed_train_df = self.get_X_df(self._data_fname, self._meta_fname)
+        self.set_scale(processed_train_df)
+        processed_train_df = self.normalize(processed_train_df)
+
         y_df = self.get_y_df()
         y_df = y_df.loc[processed_train_df.index]
 
