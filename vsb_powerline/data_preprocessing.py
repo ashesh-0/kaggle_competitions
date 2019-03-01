@@ -66,10 +66,10 @@ class DataProcessor:
             intended_time_steps: int,
             original_time_steps: int,
             peak_threshold: int,
-            smoothing_window: int = 10,
+            smoothing_window: int = 3,
             remove_corona=False,
             corona_max_distance=5,
-            corona_max_height_ratio=0.5,
+            corona_max_height_ratio=0.8,
             corona_cleanup_distance=10,
             num_processes: int = 7,
     ):
