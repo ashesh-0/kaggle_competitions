@@ -79,13 +79,14 @@ class LSTModel:
             CuDNNLSTM(
                 self._units,
                 return_sequences=False,
-                kernel_regularizer=regularizers.l1(0.003),
+#                 kernel_regularizer=regularizers.l1(0.001),
                 # activity_regularizer=regularizers.l1(0.01),
                 # bias_regularizer=regularizers.l1(0.01)
             ))(inp)
 
         #         x = Bidirectional(CuDNNLSTM(self._units, return_sequences=False))(inp)
-        #         x = Bidirectional(LSTM(self._units // 2, return_sequences=False))(x)
+#         x = Bidirectional(CuDNNLSTM(self._units // 2, return_sequences=False,
+#                                    kernel_regularizer=regularizers.l1(0.001),))(x)
         x = Dense(self._dense_c)(x)
         x = BatchNormalization()(x)
         x = LeakyReLU()(x)
@@ -297,7 +298,7 @@ class LSTModel:
         print('Matthews correlation on dev set is ', self._best_score, ' with threshold:', self.threshold)
 
     @staticmethod
-    def get_generator(train_X: np.array, train_y: np.array, batch_size: int, n_times: int = 3):
+    def get_generator(train_X: np.array, train_y: np.array, batch_size: int, n_times: int = 2):
 
         shifts = list(map(int, np.linspace(0, train_X.shape[2], n_times + 1)[1:-1]))
         shifts = [0] + shifts
@@ -377,6 +378,7 @@ class LSTModel:
                 validation_data=[val_X, val_y],
                 callbacks=[ckpt],
                 steps_per_epoch=steps_per_epoch,
+                verbose=1,
             )
 
             # loads the best weights saved by the checkpoint
