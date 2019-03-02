@@ -8,8 +8,8 @@ def _check_new_X(X, new_X, n_times):
     shifts = []
     for i in range(X.shape[0], X.shape[0] * n_times, X.shape[0]):
         found = False
-        for shift in range(1, X.shape[2]):
-            guess = np.roll(X, shift, axis=2)
+        for shift in range(1, X.shape[1]):
+            guess = np.roll(X, shift, axis=1)
             if (guess == new_X[i:i + X.shape[0], :, :]).all():
                 shifts.append(shift)
                 found = True
@@ -20,7 +20,7 @@ def _check_new_X(X, new_X, n_times):
 
 
 def test_augument_by_timestamp_shifts_2Dy():
-    X = np.arange(100).reshape(4, 1, 25)
+    X = np.arange(100).reshape(4, 25, 1)
     y = (np.random.rand(4, 1) > 1).astype(int)
     n_times = 5
     generator, steps = LSTModel.get_generator(X, y, 2, n_times=n_times)
@@ -42,7 +42,7 @@ def test_augument_by_timestamp_shifts_2Dy():
 
 
 def test_augument_by_timestamp_shifts_1Dy():
-    X = np.arange(100).reshape(4, 1, 25)
+    X = np.arange(100).reshape(4, 25, 1)
     y = (np.random.rand(4, 1) > 1).astype(int).reshape(X.shape[0], )
     n_times = 5
     generator, steps = LSTModel.get_generator(X, y, 2, n_times=n_times)

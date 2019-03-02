@@ -300,13 +300,13 @@ class LSTModel:
     @staticmethod
     def get_generator(train_X: np.array, train_y: np.array, batch_size: int, n_times: int = 2):
 
-        shifts = list(map(int, np.linspace(0, train_X.shape[2], n_times + 1)[1:-1]))
+        shifts = list(map(int, np.linspace(0, train_X.shape[1], n_times + 1)[1:-1]))
         shifts = [0] + shifts
 
         def augument_by_timestamp_shifts() -> Tuple[np.array, np.array]:
             """
             n_times: factor by which the training data is to be increased.
-            We shift the timestamps to get more data to train. It assumes timestamp is in 3rd dimension of
+            We shift the timestamps to get more data to train. It assumes timestamp is in 2nd dimension of
             train_X
             """
             print('After data augumentation, training data has become ', n_times, ' times its original size.')
@@ -315,7 +315,7 @@ class LSTModel:
             # 1 time is the original data itself.
             while True:
                 for shift_amount in shifts:
-                    train_X_shifted = np.roll(train_X, shift_amount, axis=2)
+                    train_X_shifted = np.roll(train_X, shift_amount, axis=1)
                     for index in range(0, train_X_shifted.shape[0], batch_size):
                         X = train_X_shifted[index:(index + batch_size), :, :]
                         y = train_y[index:(index + batch_size)]
