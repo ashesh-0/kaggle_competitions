@@ -8,6 +8,7 @@ from keras.models import Model
 from sklearn.metrics import matthews_corrcoef
 from sklearn.model_selection import StratifiedKFold
 from keras import regularizers
+from threadsafe_iterator import threadsafe
 
 
 # It is the official metric used in this competition
@@ -42,7 +43,8 @@ class LSTModel:
             train_fname='/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/transformed_train.csv',
             meta_train_fname='/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/metadata_train.csv',
             skip_fraction: float = 0,
-    ):
+            data_aug_num_shifts=1,
+            data_aug_flip=False):
         """
         Args:
             skip_fraction: initial fraction of timestamps can be ignored.
@@ -52,6 +54,8 @@ class LSTModel:
         self._data_fname = train_fname
         self._meta_fname = meta_train_fname
         self._skip_fraction = skip_fraction
+        self._data_aug_num_shifts = data_aug_num_shifts
+        self._data_aug_flip = data_aug_flip
 
         self._skip_features = [
             'diff_smoothend_by_1 Quant-0.25', 'diff_smoothend_by_1 Quant-0.75', 'diff_smoothend_by_1 abs_mean',
@@ -79,14 +83,14 @@ class LSTModel:
             CuDNNLSTM(
                 self._units,
                 return_sequences=False,
-#                 kernel_regularizer=regularizers.l1(0.001),
+                #                 kernel_regularizer=regularizers.l1(0.001),
                 # activity_regularizer=regularizers.l1(0.01),
                 # bias_regularizer=regularizers.l1(0.01)
             ))(inp)
 
         #         x = Bidirectional(CuDNNLSTM(self._units, return_sequences=False))(inp)
-#         x = Bidirectional(CuDNNLSTM(self._units // 2, return_sequences=False,
-#                                    kernel_regularizer=regularizers.l1(0.001),))(x)
+        #         x = Bidirectional(CuDNNLSTM(self._units // 2, return_sequences=False,
+        #                                    kernel_regularizer=regularizers.l1(0.001),))(x)
         x = Dense(self._dense_c)(x)
         x = BatchNormalization()(x)
         x = LeakyReLU()(x)
@@ -298,30 +302,34 @@ class LSTModel:
         print('Matthews correlation on dev set is ', self._best_score, ' with threshold:', self.threshold)
 
     @staticmethod
-    def get_generator(train_X: np.array, train_y: np.array, batch_size: int, n_times: int = 2):
+    def get_generator(train_X: np.array, train_y: np.array, batch_size: int, flip: bool, num_shifts: int = 2):
 
-        shifts = list(map(int, np.linspace(0, train_X.shape[1], n_times + 1)[1:-1]))
+        shifts = list(map(int, np.linspace(0, train_X.shape[1], num_shifts + 1)[1:-1]))
         shifts = [0] + shifts
+        flip_ts = [1, -1] if flip else [1]
 
+        @threadsafe
         def augument_by_timestamp_shifts() -> Tuple[np.array, np.array]:
             """
-            n_times: factor by which the training data is to be increased.
+            num_shifts: factor by which the training data is to be increased.
             We shift the timestamps to get more data to train. It assumes timestamp is in 2nd dimension of
             train_X
             """
-            print('After data augumentation, training data has become ', n_times, ' times its original size.')
+            print('After data augumentation, training data has become ', num_shifts, ' times its original size.')
             # generator = DataGenerator('training_data_augumented.csv', batch_size, train_X.shape[1], train_X.shape[2],)
             # generator.add(train_X, train_y)
             # 1 time is the original data itself.
             while True:
                 for shift_amount in shifts:
-                    train_X_shifted = np.roll(train_X, shift_amount, axis=1)
-                    for index in range(0, train_X_shifted.shape[0], batch_size):
-                        X = train_X_shifted[index:(index + batch_size), :, :]
-                        y = train_y[index:(index + batch_size)]
-                        yield (X, y)
+                    for flip_direction in flip_ts:
+                        flipped_X = train_X[:, ::flip_direction, :]
+                        train_X_shifted = np.roll(flipped_X, shift_amount, axis=1)
+                        for index in range(0, train_X_shifted.shape[0], batch_size):
+                            X = train_X_shifted[index:(index + batch_size), :, :]
+                            y = train_y[index:(index + batch_size)]
+                            yield (X, y)
 
-        steps_per_epoch = len(shifts) * train_X.shape[0] // batch_size
+        steps_per_epoch = len(flip_ts) * len(shifts) * train_X.shape[0] // batch_size
         return augument_by_timestamp_shifts, steps_per_epoch
 
     def train(self, batch_size=128, epoch=50):
@@ -351,7 +359,13 @@ class LSTModel:
             self._n_split_scales.append(scale)
 
             # data augumentation
-            generator, steps_per_epoch = LSTModel.get_generator(train_X, train_y, batch_size)
+            generator, steps_per_epoch = LSTModel.get_generator(
+                train_X,
+                train_y,
+                batch_size,
+                self._data_aug_flip,
+                num_shifts=self._data_aug_num_shifts,
+            )
 
             # print('Train X shape', train_X.shape)
             # print('Val X shape', val_X.shape)
@@ -366,7 +380,7 @@ class LSTModel:
                 'weights_{}.h5'.format(idx),
                 save_best_only=True,
                 save_weights_only=True,
-                verbose=1,
+                verbose=0,
                 monitor='val_matthews_correlation',
                 mode='max',
             )
@@ -378,7 +392,9 @@ class LSTModel:
                 validation_data=[val_X, val_y],
                 callbacks=[ckpt],
                 steps_per_epoch=steps_per_epoch,
-                verbose=1,
+                workers=3,
+                use_multiprocessing=True,
+                verbose=0,
             )
 
             # loads the best weights saved by the checkpoint
