@@ -315,7 +315,8 @@ class LSTModel:
             We shift the timestamps to get more data to train. It assumes timestamp is in 2nd dimension of
             train_X
             """
-            print('After data augumentation, training data has become ', num_shifts, ' times its original size.')
+            num_times = len(flip_ts) * num_shifts
+            print('After data augumentation, training data has become ', num_times, ' times its original size.')
             # generator = DataGenerator('training_data_augumented.csv', batch_size, train_X.shape[1], train_X.shape[2],)
             # generator.add(train_X, train_y)
             # 1 time is the original data itself.

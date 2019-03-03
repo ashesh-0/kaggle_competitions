@@ -48,3 +48,10 @@ Inference:
     0.95 > 0.9
     if 0.95, then 3 > 6.
     if 0.95, then 15 > 20.
+
+no flip, Number of shifts in data augumentation.
+../input/dataprocessing/train_data_3_0.95_15.csv   1   0.6932659614617658
+../input/dataprocessing/train_data_3_0.95_15.csv   2   0.7126828631043923
+../input/dataprocessing/train_data_3_0.95_15.csv   3   0.7420054133931855
+../input/dataprocessing/train_data_3_0.95_15.csv   5   0.7332889767699805
+../input/dataprocessing/train_data_3_0.95_15.csv   8   0.7441791916963365
