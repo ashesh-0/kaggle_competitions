@@ -73,6 +73,7 @@ class LSTModel:
         self._n_splits = 3
         self._feature_c = None
         self._ts_c = None
+        self._train_batch_size = None
         # validation score is saved here.
         self._val_score = -1
         # normalization is done using this.
@@ -85,6 +86,7 @@ class LSTModel:
             self._ts_c,
             self._feature_c,
         ))
+        x = Dropout(self._dropout_fraction, noise_shape=(self._train_batch_size, 1, self._feature_c))(inp)
         x = Bidirectional(
             CuDNNLSTM(
                 self._units,
@@ -92,7 +94,7 @@ class LSTModel:
                 #                 kernel_regularizer=regularizers.l1(0.001),
                 # activity_regularizer=regularizers.l1(0.01),
                 # bias_regularizer=regularizers.l1(0.01)
-            ))(inp)
+            ))(x)
 
         #         x = Bidirectional(CuDNNLSTM(self._units, return_sequences=False))(inp)
         #         x = Bidirectional(CuDNNLSTM(self._units // 2, return_sequences=False,
@@ -349,6 +351,9 @@ class LSTModel:
                         for index in range(0, train_X_shifted.shape[0], batch_size):
                             X = train_X_shifted[index:(index + batch_size), :, :]
                             y = train_y[index:(index + batch_size)]
+                            if X.shape[0] < batch_size:
+                                continue
+                            assert X.shape[0] == batch_size
                             yield (X, y)
 
         steps_per_epoch = len(flip_ts) * len(shifts) * train_X.shape[0] // batch_size
@@ -374,6 +379,10 @@ class LSTModel:
         plt.show()
 
     def train(self, batch_size=128, epoch=50):
+
+        # to be used in get_model()
+        self._train_batch_size = batch_size
+
         X, y = self.get_X_y()
         print('X shape', X.shape)
         print('Y shape', y.shape)
