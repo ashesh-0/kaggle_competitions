@@ -55,3 +55,117 @@ no flip, Number of shifts in data augumentation.
 ../input/dataprocessing/train_data_3_0.95_15.csv   3   0.7420054133931855
 ../input/dataprocessing/train_data_3_0.95_15.csv   5   0.7332889767699805
 ../input/dataprocessing/train_data_3_0.95_15.csv   8   0.7441791916963365
+
+
+without flip
+../input/dataprocessing/train_data.csv   3   0.6822760564347564
+
+
+no flip, number of shifts is 2. here we vary
+    1. peak height min ratio [0.95, 0.98]
+    2. corona_cleanup_distance [10, 50, 100]
+
+../input/dataprocessing/train_data_0.98_10.csv   2   0.7234839640472763 (thresh: 0.79, train score: 1)
+    (0.7, 0.12, stable)
+    (0.6, 0.15, almost stable)
+    (0.65, 0.15, almost stable)
+
+../input/dataprocessing/train_data_0.95_10.csv   2   0.7285998586761844 ( thresh: 0.37, train score: 0.98)
+    (0.6, 0.12, stable)
+    (0.6, 0.16, almost stable)
+    (0.68, 0.16, almost stable )
+
+../input/dataprocessing/train_data_0.98_100.csv   2   0.6738666577808261 (thresh: 0.49, train score: 0.99)
+    (0.58, 0.16, almost stable)
+    (0.58, 0.16, almost stable)
+    (0.58, 0.2, almost stable)
+
+../input/dataprocessing/train_data_0.98_50.csv   2   0.6605525077983523 (thres: 0.4, train score: 0.80)
+    (0.6,0.17, less stable)
+    (0.58, 0.18, less stable)
+    (0.6, 0.2, less stable)
+
+../input/dataprocessing/train_data_0.95_50.csv   2   0.6119077395408501 (thres: 0.88, train score: 0.98)
+    (0.7, 0.14, stable)
+    (0.5, 0.2, not stable)
+    (0.6, 0.2, less stable)
+
+../input/dataprocessing/train_data_0.95_100.csv   2   0.6683054446658114 (thres: 0.44, train score: 0.96)
+(0.58, 0.2, less stable)
+(0.6, 0.2, less stable)
+(0.6, 0.2, less stable)
+
+Inference:
+1. corona cleanup distance 10 is better.
+2. 0.95 ~ 0.98 when looking at validation. however, 0.95 is better than 0.98 when looking at train data.
+
+Repeating above experiment with data augumentation disabled.
+no flip, no shifts. here we vary
+    1. peak height min ratio [0.95, 0.98]
+    2. corona_cleanup_distance [10, 50, 100]
+
+
+../input/dataprocessing/train_data_0.98_10.csv   1   0.6244669709364603 (thresh: 0.12)
+    (0.62, 0.2, almost stable)
+    (0.6,0.2, stable)
+    (0.7, 0.15, stable)
+
+../input/dataprocessing/train_data_0.95_10.csv   1   0.710795182946097 (thresh: 0.25)
+    (0.68, 0.15, stable)
+    (0.6, 0.17, stable)
+    (0.7, 0.17, stable)
+
+../input/dataprocessing/train_data_0.98_100.csv   1   0.6207618409819141 (thresh: 0.7)
+    (0.6, 0.2, not so stable)
+    (0.58, 0.2, not so stable)
+    (0.6, 0.15, not so stable)
+
+../input/dataprocessing/train_data_0.98_50.csv   1   0.6660437333135646 (thresh: 0.4)
+    (0.6, 0.16, not so stable)
+    (0.6, 0.2, not stable)
+    (0.68, 0.15, stable)
+
+../input/dataprocessing/train_data_0.95_50.csv   1   0.6834901342978863 (thresh 0.68)
+    (0.6, 0.17, stable)
+    (0.5, 0.2, not so stable)
+    (0.68, 0.15)
+
+../input/dataprocessing/train_data_0.95_100.csv   1   0.6268047759323415 (thresh 0.83)
+    (0.6, 0.15, stable)
+    (0.6, 0.2, not so stable)
+    (0.6, 0.2)
+
+Inference:
+    0.95 > 0.98
+    10 is best in terms of stablility.
+    We also need to look at how threshold is getting generated. It is very fluctuating across models.
+
+When size is 4 times the original, in about 20 iterations, model gets to its best performace with lowest loss.
+So 20 epoch is good enough for it.
+Also, as far as threshold is concerned, I'll add a logic which will keep threshold to something around 0.5
+
+Varying number of time steps. with 0.95 as peak height min ratio and 10 as corona_cleanup_distance:
+    1. ../input/dataprocessing/train_data_0.95_10_50.csv   3   0.6657940642220486 (thresh: 0.5)
+    2. ../input/dataprocessing/train_data_0.95_10_100.csv   3   0.6867873563067558 (thresh: 0.5)
+    3. ../input/dataprocessing/train_data_0.95_10_200.csv   3   0.7242895326694354 (thresh: 0.5)
+
+
+Here, on 200, we vary number of data_augumentation shifts. As before, we have 0.95, 10 set.
+    ../input/dataprocessing/train_data_0.95_10_200.csv   1   0.7296492866635081 (threshold 0.5)
+    (0.7, 0.15, stable, ~1)
+    (0.7, 0.14, stable, ~1)
+    (0.68, 0.16, stable, ~1)
+
+    ../input/dataprocessing/train_data_0.95_10_200.csv   2   0.745963110142455 (threshold 0.5)
+    (0.8, 0.12, stable, ~1)
+    (0.6, 0.2, unstable, ~1)
+    (0.7, 0,15, stable, ~1)
+
+    Slightly Bizaare fitting threshold. It peaks at around 0.8. However, difference is of 0.03
+
+    ../input/dataprocessing/train_data_0.95_10_200.csv   3   0.7132573898549575 (threshold 0.5)
+    (0.7, 0.18, not so stable, ~1)
+    (0.7, 0.15, almost stable, ~1)
+    Similar pattern for peak: it peaks around 0.9 ?. Anything below 0.9 is bad.
+
+    Need to repeat this with threshold tuning params so that it switches to something apart from 0.5

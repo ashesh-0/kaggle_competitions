@@ -3,12 +3,13 @@ import numpy as np
 import pandas as pd
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint
-from keras.layers import (Bidirectional, Dense, Input, CuDNNLSTM, Activation, BatchNormalization, LeakyReLU)
+from keras.layers import (Bidirectional, Dense, Input, CuDNNLSTM, Activation, BatchNormalization, LeakyReLU, Dropout)
 from keras.models import Model
 from sklearn.metrics import matthews_corrcoef
 from sklearn.model_selection import StratifiedKFold
 from keras import regularizers
-from threadsafe_iterator import threadsafe
+
+# from threadsafe_iterator import threadsafe
 
 
 # It is the official metric used in this competition
@@ -44,7 +45,9 @@ class LSTModel:
             meta_train_fname='/home/ashesh/Documents/initiatives/kaggle_competitions/vsb_powerline/data/metadata_train.csv',
             skip_fraction: float = 0,
             data_aug_num_shifts=1,
-            data_aug_flip=False):
+            data_aug_flip=False,
+            dropout_fraction=0.3,
+            plot_stats=True):
         """
         Args:
             skip_fraction: initial fraction of timestamps can be ignored.
@@ -56,6 +59,8 @@ class LSTModel:
         self._skip_fraction = skip_fraction
         self._data_aug_num_shifts = data_aug_num_shifts
         self._data_aug_flip = data_aug_flip
+        self._plot_stats = plot_stats
+        self._dropout_fraction = dropout_fraction
 
         self._skip_features = [
             'diff_smoothend_by_1 Quant-0.25', 'diff_smoothend_by_1 Quant-0.75', 'diff_smoothend_by_1 abs_mean',
@@ -65,10 +70,11 @@ class LSTModel:
             'diff_smoothend_by_8 Quant-0.25', 'diff_smoothend_by_8 Quant-0.5', 'signal_Quant-0.25', 'signal_Quant-0.75'
         ]
 
-        self._n_splits = 5
+        self._n_splits = 3
         self._feature_c = None
         self._ts_c = None
-
+        # validation score is saved here.
+        self._val_score = -1
         # normalization is done using this.
         self._n_split_scales = []
         # a value between 0 and 1. a prediction greater than this value is considered as 1.
@@ -91,6 +97,7 @@ class LSTModel:
         #         x = Bidirectional(CuDNNLSTM(self._units, return_sequences=False))(inp)
         #         x = Bidirectional(CuDNNLSTM(self._units // 2, return_sequences=False,
         #                                    kernel_regularizer=regularizers.l1(0.001),))(x)
+        x = Dropout(self._dropout_fraction)(x)
         x = Dense(self._dense_c)(x)
         x = BatchNormalization()(x)
         x = LeakyReLU()(x)
@@ -291,20 +298,34 @@ class LSTModel:
             output_index.append(df.index.tolist())
         return pd.Series(np.squeeze(np.concatenate(output)), index=np.concatenate(output_index))
 
-    def fit_threshold(self, prediction, actual):
-        self._best_score = -1
-        self.threshold = None
-        for threshold in np.linspace(0.01, 0.9, 1000):
+    def fit_threshold(self, prediction, actual, start=0.01, end=0.9, n_count=20, center_alignment_offset=0.1):
+        best_score = -1
+        self.threshold = 0
+        scores = []
+        thresholds = np.linspace(start, end, n_count)
+        for threshold in thresholds:
             score = matthews_corrcoef(actual, (prediction > threshold).astype(np.float64))
-            if score > self._best_score:
-                self._best_score = score
+            scores.append(score)
+            center_alignment = 1 if threshold > (1 - self.threshold) else -1
+            if score > best_score + center_alignment * center_alignment_offset:
+                best_score = score
                 self.threshold = threshold
-        print('Matthews correlation on dev set is ', self._best_score, ' with threshold:', self.threshold)
+
+        if self._plot_stats:
+            import matplotlib.pyplot as plt
+
+            plt.plot(thresholds, scores)
+            plt.title('Fitting threshold')
+            plt.ylabel('mathews correlation coef')
+            plt.xlabel('threshold')
+            plt.show()
+
+        print('Matthews correlation on train set is ', best_score, ' with threshold:', self.threshold)
 
     @staticmethod
     def get_generator(train_X: np.array, train_y: np.array, batch_size: int, flip: bool, num_shifts: int = 2):
 
-        shifts = list(map(int, np.linspace(0, train_X.shape[1], num_shifts + 1)[1:-1]))
+        shifts = list(map(int, np.linspace(0, train_X.shape[1] * 0.2, num_shifts + 1)[1:-1]))
         shifts = [0] + shifts
         flip_ts = [1, -1] if flip else [1]
 
@@ -332,6 +353,25 @@ class LSTModel:
 
         steps_per_epoch = len(flip_ts) * len(shifts) * train_X.shape[0] // batch_size
         return augument_by_timestamp_shifts, steps_per_epoch
+
+    def _plot_acc_loss(self, history):
+        import matplotlib.pyplot as plt
+
+        plt.plot(history.history['matthews_correlation'])
+        plt.plot(history.history['val_matthews_correlation'])
+        plt.title('model accuracy')
+        plt.ylabel('accuracy')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        plt.show()
+        # summarize history for loss
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        plt.show()
 
     def train(self, batch_size=128, epoch=50):
         X, y = self.get_X_y()
@@ -367,7 +407,6 @@ class LSTModel:
                 self._data_aug_flip,
                 num_shifts=self._data_aug_num_shifts,
             )
-
             # print('Train X shape', train_X.shape)
             # print('Val X shape', val_X.shape)
             # print('Train Y shape', train_y.shape)
@@ -387,16 +426,19 @@ class LSTModel:
             )
 
             # Train
-            model.fit_generator(
+            history = model.fit_generator(
                 generator(),
                 epochs=epoch,
                 validation_data=[val_X, val_y],
                 callbacks=[ckpt],
                 steps_per_epoch=steps_per_epoch,
-                workers=3,
-                use_multiprocessing=True,
+                # workers=2,
+                # use_multiprocessing=True,
                 verbose=0,
             )
+
+            if self._plot_stats:
+                self._plot_acc_loss(history)
 
             # loads the best weights saved by the checkpoint
             model.load_weights('weights_{}.h5'.format(idx))
@@ -406,4 +448,7 @@ class LSTModel:
 
         prediction = np.concatenate(preds_array)
         actual = np.concatenate(y_array)
-        self.fit_threshold(prediction, actual)
+
+        self.fit_threshold(model.predict(train_X), train_y)
+        self._val_score = matthews_corrcoef(actual, (prediction > self.threshold).astype(np.float64))
+        print('On validation data, score is:', self._val_score)
