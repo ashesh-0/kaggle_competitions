@@ -1,3 +1,4 @@
+from unittest.mock import patch
 import numpy as np
 from lstm import LSTModel
 
@@ -72,6 +73,57 @@ def test_augument_by_timestamp_shifts_1Dy():
 
     assert (np.tile(y, (num_times)) == new_y).all()
     _check_new_X(X, new_X, num_times, flip)
+
+
+def test_fit_threshold():
+    prediction = np.array([1, 2, 3])
+    actual = prediction.copy()
+    start = 0
+    end = 1
+    counts = 100
+    best_threshold_index = 55
+    early_best_threshold_index = 10
+    thresholds = np.linspace(start, end, counts)
+
+    def iter():
+        while True:
+            for index, _ in enumerate(thresholds):
+                if index == early_best_threshold_index:
+                    yield 0.8
+                    continue
+                if index == best_threshold_index:
+                    yield 0.75
+                    continue
+                yield 0.6
+
+    iterator = iter()
+
+    def custom_score(*args, **kwargs):
+        for value in iterator:
+            return value
+
+    with patch('lstm.matthews_corrcoef', side_effect=custom_score) as p:
+        model = LSTModel(
+            10,
+            15,
+            train_fname='',
+            meta_train_fname='',
+            skip_fraction=0,
+            data_aug_num_shifts=1,
+            data_aug_flip=False,
+            plot_stats=False)
+
+        model.fit_threshold(prediction, actual, start=start, end=end, n_count=counts, center_alignment_offset=0)
+        assert model.threshold == thresholds[early_best_threshold_index]
+
+        model.fit_threshold(prediction, actual, start=start, end=end, n_count=counts, center_alignment_offset=0.04)
+        assert model.threshold == thresholds[early_best_threshold_index]
+
+        model.fit_threshold(prediction, actual, start=start, end=end, n_count=counts, center_alignment_offset=0.11)
+        assert model.threshold == thresholds[best_threshold_index]
+
+        model.fit_threshold(prediction, actual, start=start, end=end, n_count=counts, center_alignment_offset=0.3)
+        assert round(model.threshold, 2) == 0.49
 
 
 def test_augument_by_timestamp_shifts_1Dy_with_flip():
