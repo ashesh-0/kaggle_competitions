@@ -298,7 +298,7 @@ class LSTModel:
             output_index.append(df.index.tolist())
         return pd.Series(np.squeeze(np.concatenate(output)), index=np.concatenate(output_index))
 
-    def fit_threshold(self, prediction, actual, start=0.01, end=0.9, n_count=20, center_alignment_offset=0.1):
+    def fit_threshold(self, prediction, actual, start=0.08, end=0.98, n_count=20, center_alignment_offset=0.01):
         best_score = -1
         self.threshold = 0
         scores = []

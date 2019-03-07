@@ -169,3 +169,57 @@ Here, on 200, we vary number of data_augumentation shifts. As before, we have 0.
     Similar pattern for peak: it peaks around 0.9 ?. Anything below 0.9 is bad.
 
     Need to repeat this with threshold tuning params so that it switches to something apart from 0.5
+
+Repeating previous experiment( kaggle version 50):
+    ../input/dataprocessing/train_data_0.95_10_200.csv   1   0.7269477621848228 (threshold : 0.5)
+    (0.7, 0.15, stable)
+    (0.7, 0.12, stable)
+    (0.7, 0.12, stable)
+
+    ../input/dataprocessing/train_data_0.95_10_200.csv   2   0.7084346924448323 (threshold: 0.5)
+    (0.6, 0.18,  stable)
+    (0.7, 0.15, stable)
+    (0.7, 0.13, stable)
+
+    ../input/dataprocessing/train_data_0.95_10_200.csv   3   0.723772752462884
+    (0.6, 0.2, not stable)
+    (0.7, 0.18, not stable)
+    (0.68, 0.17, almost stable)
+
+    Here, I dont see that increasing data is improving performance for validation data.
+
+Dropout is placed between LSTM unit and dense layer.
+Dropout is varied [0.3, 0.2, 0.1] with data_aug_num_times kept to 2:
+
+    (dropout 0.3) ../input/dataprocessing/train_data_0.95_10_200.csv   2   0.6514688422958768 (threshold: 0.88)
+    (0.65, 0.12, stable)
+    (0.7, 0.1, very stable)
+    (0.65, 0.12, stable)
+
+    (dropout 0.2) ../input/dataprocessing/train_data_0.95_10_200.csv   2   0.716260474169257 (threshold: 0.5)
+    (0.7, 0.18, stable)
+    (0.7, 0.12, stable)
+    (0.7, 0.13, stable)
+
+    (dropout 0.1) ../input/dataprocessing/train_data_0.95_10_200.csv   2   0.7149732665597952 (threshold: 0.5)
+    (0.68, 0.18, stable)
+    (0.7, 0.12, stable)
+    (0.7, 0.18, almost stable)
+
+    Stablity is amazing with dropout. It is even more in terms of loss. In terms of metric in consideration as well it is more stable than naive case.
+
+    One more point which I see that, running same configuration twice leads to improvements of about 0.3
+    in magnitude. So one possible way of improving performance is to simply run it again and again.
+
+Dropout is varied with data_aug_num_times kept to 1( kaggle version 51):
+Dropout is varied with data_aug_num_times kept to 3:
+
+(0.3) ../input/dataprocessing/train_data_0.95_10_200.csv   3   0.67 (threshold: 0.69)
+    (0.7, 0.15, less stable)
+    (0.7, 0.12, stable)
+    (0.7, 0.14, less stable)
+
+(0.2)
+    (0.7, 0.15, less stable)
+
+For lstm, it might make sense to keep dropout before lstm unit. Same dropout mask will be applied to all timestamps.
