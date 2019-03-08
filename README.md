@@ -223,3 +223,5 @@ Dropout is varied with data_aug_num_times kept to 3:
     (0.7, 0.15, less stable)
 
 For lstm, it might make sense to keep dropout before lstm unit. Same dropout mask will be applied to all timestamps.
+
+There were some features whose distribution (mean, quantiles) was very different in test when compared with train. That being so, few of those features were removed. (version 54 kaggle)

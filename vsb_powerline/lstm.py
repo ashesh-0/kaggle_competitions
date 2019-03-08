@@ -70,6 +70,13 @@ class LSTModel:
             'diff_smoothend_by_8 Quant-0.25', 'diff_smoothend_by_8 Quant-0.5', 'signal_Quant-0.25', 'signal_Quant-0.75'
         ]
 
+        # their distribution is significantly different in test data from train.
+        self._skip_features += [
+            'diff_smoothend_by_2 Quant-0.0', 'signal_Quant-0.5', 'diff_smoothend_by_4 Quant-0.0', 'peak_width_1',
+            'peak_width_0', 'diff_smoothend_by_8 Quant-0.0', 'diff_smoothend_by_16 Quant-0.0', 'peak_distances_1',
+            'peak_distances_0.75', 'peak_distances_0.5'
+        ]
+
         self._n_splits = 3
         self._feature_c = None
         self._ts_c = None
@@ -149,7 +156,7 @@ class LSTModel:
             col_filter = processed_data_df.columns.get_level_values(0) > skip_end_ts_index
             processed_data_df = processed_data_df.iloc[:, col_filter]
 
-        return processed_data_df.sort_index(axis=0)
+        return processed_data_df.sort_index(axis=0).sort_index(axis=1)
 
     def get_y_df(self):
         fname = self._meta_fname
@@ -172,18 +179,25 @@ class LSTModel:
         grp = temp_df.groupby('id_measurement')
 
         data_1 = grp.shift(0)
-        data_1 = data_1[~data_1.index.duplicated(keep='first')].drop(['id_measurement'], axis=1)
+        data_1 = data_1[~data_1.index.duplicated(keep='first')]
 
         data_2 = grp.shift(-1)
-        data_2 = data_2[~data_2.index.duplicated(keep='first')].drop(['id_measurement'], axis=1)
+        data_2 = data_2[~data_2.index.duplicated(keep='first')]
 
         data_3 = grp.shift(-2)
-        data_3 = data_3[~data_3.index.duplicated(keep='first')].drop(['id_measurement'], axis=1)
+        data_3 = data_3[~data_3.index.duplicated(keep='first')]
         del grp
         del temp_df
 
         assert set(data_1.index.tolist()) == (set(data_2.index.tolist()))
         assert set(data_1.index.tolist()) == (set(data_3.index.tolist()))
+
+        assert 'id_measurement' not in data_1.columns.levels[0]
+        assert 'id_measurement' not in data_2.columns.levels[0]
+        assert 'id_measurement' not in data_3.columns.levels[0]
+        assert 'id_measurement' not in data_1.columns.levels[1]
+        assert 'id_measurement' not in data_2.columns.levels[1]
+        assert 'id_measurement' not in data_3.columns.levels[1]
 
         # change indicators name to ensure uniqueness of columns
         feat_names = ['Phase1-' + e for e in data_1.columns.levels[1].tolist()]
@@ -233,6 +247,7 @@ class LSTModel:
                 last_accesible_id = meta_df.iloc[e_index - 1]['id_measurement']
                 first_inaccesible_id = meta_df.iloc[e_index]['id_measurement']
 
+            assert set(meta_df.iloc[s_index:e_index]['id_measurement'].value_counts().values.tolist()) == set([3])
             # making all three phases data available.
             data_df = self.add_phase_data(processed_data_df.iloc[s_index:e_index], meta_fname)
             assert not data_df.isna().any().any(), 'Training data has nan'
