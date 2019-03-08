@@ -157,6 +157,11 @@ class LSTModel:
         return df.set_index('signal_id')
 
     def add_phase_data(self, processed_data_df, meta_fname):
+        """
+        Args:
+            processed_data_df: 2 level columns. level 0 is timestamp(int). level 1 is features.(str)
+            meta_fname: meta file
+        """
         print('Phase data is about to be added')
         metadata_df = pd.read_csv(meta_fname).set_index('signal_id')
         processed_data_df = processed_data_df.join(metadata_df[['id_measurement']], how='left')
