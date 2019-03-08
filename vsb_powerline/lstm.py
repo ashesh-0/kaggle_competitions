@@ -167,13 +167,13 @@ class LSTModel:
         grp = temp_df.groupby('id_measurement')
 
         data_1 = grp.shift(0)
-        data_1 = data_1[~data_1.index.duplicated(keep='first')]
+        data_1 = data_1[~data_1.index.duplicated(keep='first')].drop(['id_measurement'], axis=1)
 
         data_2 = grp.shift(-1)
-        data_2 = data_2[~data_2.index.duplicated(keep='first')]
+        data_2 = data_2[~data_2.index.duplicated(keep='first')].drop(['id_measurement'], axis=1)
 
         data_3 = grp.shift(-2)
-        data_3 = data_3[~data_3.index.duplicated(keep='first')]
+        data_3 = data_3[~data_3.index.duplicated(keep='first')].drop(['id_measurement'], axis=1)
         del grp
         del temp_df
 
@@ -190,7 +190,7 @@ class LSTModel:
         feat_names = ['Phase3-' + e for e in data_3.columns.levels[1].tolist()]
         data_3.columns.set_levels(feat_names, level=1, inplace=True)
 
-        processed_data_df = pd.concat([data_1, data_2, data_3], axis=1)
+        processed_data_df = pd.concat([data_1, data_2, data_3], axis=1).sort_index(axis=1)
         print(processed_data_df.shape)
         print('Phase data added')
         return processed_data_df
