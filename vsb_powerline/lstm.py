@@ -148,6 +148,7 @@ class LSTModel:
         # feature_cols = LSTModel.skip_quantile_features(processed_data_df.columns.levels[1], [0.25, 0.75])
         feature_cols = list(set(processed_data_df.columns.levels[1]) - set(self._skip_features))
         processed_data_df = processed_data_df.iloc[:, processed_data_df.columns.get_level_values(1).isin(feature_cols)]
+        processed_data_df.columns = processed_data_df.columns.remove_unused_levels()
 
         # skip first few timestamps. (from paper.)
         ts_units = len(processed_data_df.columns.levels[0])
