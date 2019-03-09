@@ -231,7 +231,7 @@ This version improved the score to 0.55 lb score(We removed few features. It cou
 In other public kernels, I see that the train score does not go to 1.That means that we have way too many features. Earlier, I had approached this problem as remove few features. However, now I feel that
 we should not concatenate the three phases data naively. this will reduce the features by a factor of 3. also several factors out there are highly related. so it makes sense to not feed in all 3 phase features.
 
-Varying dropouts (0.3, 0.2, 0.1)
+Varying dropouts, when dropout is placed after LSTM unit (0.3, 0.2, 0.1)
 Now we have just 56 features, 200 timestamps. X shape (8712, 200, 56)
 0.1 ../input/dataprocessing/train_data_0.95_10_200.csv   1   0.6264057474890197
     (0.6, 0.15, stable, train: 0.8)
@@ -249,3 +249,7 @@ Now we have just 56 features, 200 timestamps. X shape (8712, 200, 56)
     (0.6, 0.18, stable, train: 0.6)
     (0.65, 0.5,, stable, train: 0.7)
     (0.6, 0.15, stable, train: 0.75)
+
+Varying dropouts when dropout is placed just after input and after LSTM layer.
+It is clear case of underfitting. with 0.1 as rate, results are as low as 0.2 on training data.
+
