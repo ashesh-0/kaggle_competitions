@@ -223,3 +223,29 @@ Dropout is varied with data_aug_num_times kept to 3:
     (0.7, 0.15, less stable)
 
 For lstm, it might make sense to keep dropout before lstm unit. Same dropout mask will be applied to all timestamps.
+
+There were some features whose distribution (mean, quantiles) was very different in test when compared with train. That being so, few of those features were removed. (version 54 kaggle)
+This version improved the score to 0.55 lb score(We removed few features. It could be fluke. Or it could be that it worked. This also shows that dropout just after input will also improve the performance)
+
+
+In other public kernels, I see that the train score does not go to 1.That means that we have way too many features. Earlier, I had approached this problem as remove few features. However, now I feel that
+we should not concatenate the three phases data naively. this will reduce the features by a factor of 3. also several factors out there are highly related. so it makes sense to not feed in all 3 phase features.
+
+Varying dropouts (0.3, 0.2, 0.1)
+Now we have just 56 features, 200 timestamps. X shape (8712, 200, 56)
+0.1 ../input/dataprocessing/train_data_0.95_10_200.csv   1   0.6264057474890197
+    (0.6, 0.15, stable, train: 0.8)
+    (0.65, 0.15, stable, train: 0.8)
+    (0.6, 0.15, stable, train: 0.8)
+
+(0.2) ../input/dataprocessing/train_data_0.95_10_200.csv   1   0.637695954120573 (threshold: 0.5)
+
+    (0.6, 0.18, stable, train: 0.8)
+    (0.7, 0.1, stable, train: 0.7)
+    (0.5, 0.15, stable, train: 0.8)
+
+(0.3) ../input/dataprocessing/train_data_0.95_10_200.csv   1   0.6405981443429222 (threshold: 0.4)
+
+    (0.6, 0.18, stable, train: 0.6)
+    (0.65, 0.5,, stable, train: 0.7)
+    (0.6, 0.15, stable, train: 0.75)

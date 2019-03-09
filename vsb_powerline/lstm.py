@@ -47,6 +47,7 @@ class LSTModel:
             data_aug_num_shifts=1,
             data_aug_flip=False,
             dropout_fraction=0.3,
+            add_other_phase_data=False,
             plot_stats=True):
         """
         Args:
@@ -61,13 +62,20 @@ class LSTModel:
         self._data_aug_flip = data_aug_flip
         self._plot_stats = plot_stats
         self._dropout_fraction = dropout_fraction
-
+        self._add_other_phase_data = add_other_phase_data
         self._skip_features = [
             'diff_smoothend_by_1 Quant-0.25', 'diff_smoothend_by_1 Quant-0.75', 'diff_smoothend_by_1 abs_mean',
             'diff_smoothend_by_1 mean', 'diff_smoothend_by_16 Quant-0.25', 'diff_smoothend_by_16 Quant-0.75',
             'diff_smoothend_by_16 abs_mean', 'diff_smoothend_by_16 mean', 'diff_smoothend_by_2 Quant-0.25',
             'diff_smoothend_by_2 Quant-0.75', 'diff_smoothend_by_4 Quant-0.25', 'diff_smoothend_by_4 Quant-0.75',
             'diff_smoothend_by_8 Quant-0.25', 'diff_smoothend_by_8 Quant-0.5', 'signal_Quant-0.25', 'signal_Quant-0.75'
+        ]
+
+        # their distribution is significantly different in test data from train.
+        self._skip_features += [
+            'diff_smoothend_by_2 Quant-0.0', 'signal_Quant-0.5', 'diff_smoothend_by_4 Quant-0.0', 'peak_width_1',
+            'peak_width_0', 'diff_smoothend_by_8 Quant-0.0', 'diff_smoothend_by_16 Quant-0.0', 'peak_distances_1',
+            'peak_distances_0.75', 'peak_distances_0.5'
         ]
 
         self._n_splits = 3
@@ -142,6 +150,7 @@ class LSTModel:
         # feature_cols = LSTModel.skip_quantile_features(processed_data_df.columns.levels[1], [0.25, 0.75])
         feature_cols = list(set(processed_data_df.columns.levels[1]) - set(self._skip_features))
         processed_data_df = processed_data_df.iloc[:, processed_data_df.columns.get_level_values(1).isin(feature_cols)]
+        processed_data_df.columns = processed_data_df.columns.remove_unused_levels()
 
         # skip first few timestamps. (from paper.)
         ts_units = len(processed_data_df.columns.levels[0])
@@ -151,7 +160,7 @@ class LSTModel:
             col_filter = processed_data_df.columns.get_level_values(0) > skip_end_ts_index
             processed_data_df = processed_data_df.iloc[:, col_filter]
 
-        return processed_data_df.sort_index(axis=0)
+        return processed_data_df.sort_index(axis=0).sort_index(axis=1)
 
     def get_y_df(self):
         fname = self._meta_fname
@@ -159,6 +168,11 @@ class LSTModel:
         return df.set_index('signal_id')
 
     def add_phase_data(self, processed_data_df, meta_fname):
+        """
+        Args:
+            processed_data_df: 2 level columns. level 0 is timestamp(int). level 1 is features.(str)
+            meta_fname: meta file
+        """
         print('Phase data is about to be added')
         metadata_df = pd.read_csv(meta_fname).set_index('signal_id')
         processed_data_df = processed_data_df.join(metadata_df[['id_measurement']], how='left')
@@ -182,6 +196,13 @@ class LSTModel:
         assert set(data_1.index.tolist()) == (set(data_2.index.tolist()))
         assert set(data_1.index.tolist()) == (set(data_3.index.tolist()))
 
+        assert 'id_measurement' not in data_1.columns.levels[0]
+        assert 'id_measurement' not in data_2.columns.levels[0]
+        assert 'id_measurement' not in data_3.columns.levels[0]
+        assert 'id_measurement' not in data_1.columns.levels[1]
+        assert 'id_measurement' not in data_2.columns.levels[1]
+        assert 'id_measurement' not in data_3.columns.levels[1]
+
         # change indicators name to ensure uniqueness of columns
         feat_names = ['Phase1-' + e for e in data_1.columns.levels[1].tolist()]
         data_1.columns.set_levels(feat_names, level=1, inplace=True)
@@ -192,7 +213,7 @@ class LSTModel:
         feat_names = ['Phase3-' + e for e in data_3.columns.levels[1].tolist()]
         data_3.columns.set_levels(feat_names, level=1, inplace=True)
 
-        processed_data_df = pd.concat([data_1, data_2, data_3], axis=1)
+        processed_data_df = pd.concat([data_1, data_2, data_3], axis=1).sort_index(axis=1)
         print(processed_data_df.shape)
         print('Phase data added')
         return processed_data_df
@@ -205,7 +226,9 @@ class LSTModel:
         assert processed_data_df.isna().all(axis=0).sum() <= 8
 
         processed_data_df = processed_data_df.fillna(0)
-        processed_data_df = self.add_phase_data(processed_data_df, meta_fname)
+        if self._add_other_phase_data:
+            processed_data_df = self.add_phase_data(processed_data_df, meta_fname)
+
         assert not processed_data_df.isna().any().any(), 'Training data has nan'
         return processed_data_df
 
@@ -230,15 +253,23 @@ class LSTModel:
                 last_accesible_id = meta_df.iloc[e_index - 1]['id_measurement']
                 first_inaccesible_id = meta_df.iloc[e_index]['id_measurement']
 
+            assert set(meta_df.iloc[s_index:e_index]['id_measurement'].value_counts().values.tolist()) == set([3])
+
             # making all three phases data available.
-            data_df = self.add_phase_data(processed_data_df.iloc[s_index:e_index], meta_fname)
+            data_df = processed_data_df.iloc[s_index:e_index]
+            if self._add_other_phase_data:
+                data_df = self.add_phase_data(data_df, meta_fname)
+
             assert not data_df.isna().any().any(), 'Training data has nan'
             s_index = e_index
             e_index = s_index + chunksize
             print('Completed Test data preprocessing', round(e_index / sz * 100), '%')
             yield data_df
 
-        data_df = self.add_phase_data(processed_data_df.iloc[s_index:], meta_fname)
+        data_df = processed_data_df.iloc[s_index:]
+        if self._add_other_phase_data:
+            data_df = self.add_phase_data(data_df, meta_fname)
+
         assert not data_df.isna().any().any(), 'Training data has nan'
         yield data_df
 
@@ -327,7 +358,7 @@ class LSTModel:
     @staticmethod
     def get_generator(train_X: np.array, train_y: np.array, batch_size: int, flip: bool, num_shifts: int = 2):
 
-        shifts = list(map(int, np.linspace(0, train_X.shape[1] * 0.2, num_shifts + 1)[1:-1]))
+        shifts = list(map(int, np.linspace(0, train_X.shape[1] * 0.1, num_shifts + 1)[1:-1]))
         shifts = [0] + shifts
         flip_ts = [1, -1] if flip else [1]
 
