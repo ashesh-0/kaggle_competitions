@@ -47,6 +47,7 @@ class LSTModel:
             data_aug_num_shifts=1,
             data_aug_flip=False,
             dropout_fraction=0.3,
+            add_other_phase_data=False,
             plot_stats=True):
         """
         Args:
@@ -61,7 +62,7 @@ class LSTModel:
         self._data_aug_flip = data_aug_flip
         self._plot_stats = plot_stats
         self._dropout_fraction = dropout_fraction
-
+        self._add_other_phase_data = add_other_phase_data
         self._skip_features = [
             'diff_smoothend_by_1 Quant-0.25', 'diff_smoothend_by_1 Quant-0.75', 'diff_smoothend_by_1 abs_mean',
             'diff_smoothend_by_1 mean', 'diff_smoothend_by_16 Quant-0.25', 'diff_smoothend_by_16 Quant-0.75',
@@ -222,7 +223,9 @@ class LSTModel:
         assert processed_data_df.isna().all(axis=0).sum() <= 8
 
         processed_data_df = processed_data_df.fillna(0)
-        processed_data_df = self.add_phase_data(processed_data_df, meta_fname)
+        if self._add_other_phase_data:
+            processed_data_df = self.add_phase_data(processed_data_df, meta_fname)
+
         assert not processed_data_df.isna().any().any(), 'Training data has nan'
         return processed_data_df
 
@@ -248,15 +251,22 @@ class LSTModel:
                 first_inaccesible_id = meta_df.iloc[e_index]['id_measurement']
 
             assert set(meta_df.iloc[s_index:e_index]['id_measurement'].value_counts().values.tolist()) == set([3])
+
             # making all three phases data available.
-            data_df = self.add_phase_data(processed_data_df.iloc[s_index:e_index], meta_fname)
+            data_df = processed_data_df.iloc[s_index:e_index]
+            if self._add_other_phase_data:
+                data_df = self.add_phase_data(data_df, meta_fname)
+
             assert not data_df.isna().any().any(), 'Training data has nan'
             s_index = e_index
             e_index = s_index + chunksize
             print('Completed Test data preprocessing', round(e_index / sz * 100), '%')
             yield data_df
 
-        data_df = self.add_phase_data(processed_data_df.iloc[s_index:], meta_fname)
+        data_df = processed_data_df.iloc[s_index:]
+        if self._add_other_phase_data:
+            data_df = self.add_phase_data(data_df, meta_fname)
+
         assert not data_df.isna().any().any(), 'Training data has nan'
         yield data_df
 
@@ -345,7 +355,7 @@ class LSTModel:
     @staticmethod
     def get_generator(train_X: np.array, train_y: np.array, batch_size: int, flip: bool, num_shifts: int = 2):
 
-        shifts = list(map(int, np.linspace(0, train_X.shape[1] * 0.2, num_shifts + 1)[1:-1]))
+        shifts = list(map(int, np.linspace(0, train_X.shape[1] * 0.1, num_shifts + 1)[1:-1]))
         shifts = [0] + shifts
         flip_ts = [1, -1] if flip else [1]
 
