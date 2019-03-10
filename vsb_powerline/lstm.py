@@ -71,12 +71,13 @@ class LSTModel:
             'diff_smoothend_by_8 Quant-0.25', 'diff_smoothend_by_8 Quant-0.5', 'signal_Quant-0.25', 'signal_Quant-0.75'
         ]
 
-        # their distribution is significantly different in test data from train.
-        self._skip_features += [
-            'diff_smoothend_by_2 Quant-0.0', 'signal_Quant-0.5', 'diff_smoothend_by_4 Quant-0.0', 'peak_width_1',
-            'peak_width_0', 'diff_smoothend_by_8 Quant-0.0', 'diff_smoothend_by_16 Quant-0.0', 'peak_distances_1',
-            'peak_distances_0.75', 'peak_distances_0.5'
-        ]
+        # # their distribution is significantly different in test data from train.
+        # self._skip_features += [
+        #     'diff_smoothend_by_2 Quant-0.0', 'signal_Quant-0.5', 'diff_smoothend_by_4 Quant-0.0', 'peak_width_1',
+        #     'peak_width_0', 'diff_smoothend_by_8 Quant-0.0', 'diff_smoothend_by_16 Quant-0.0', 'peak_distances_1',
+        #     'peak_distances_0.75', 'peak_distances_0.5'
+        # ]
+        self._skip_features = []
 
         self._n_splits = 3
         self._feature_c = None
@@ -107,8 +108,8 @@ class LSTModel:
         #                                    kernel_regularizer=regularizers.l1(0.001),))(x)
         x = Dropout(self._dropout_fraction)(x)
         x = Dense(self._dense_c)(x)
-        x = BatchNormalization()(x)
         x = LeakyReLU()(x)
+        x = BatchNormalization()(x)
         x = Dense(1, activation='sigmoid')(x)
         model = Model(inputs=inp, outputs=x)
         model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[matthews_correlation])
