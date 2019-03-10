@@ -77,7 +77,6 @@ class LSTModel:
         #     'peak_width_0', 'diff_smoothend_by_8 Quant-0.0', 'diff_smoothend_by_16 Quant-0.0', 'peak_distances_1',
         #     'peak_distances_0.75', 'peak_distances_0.5'
         # ]
-        self._skip_features = []
 
         self._n_splits = 3
         self._feature_c = None
