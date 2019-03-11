@@ -48,6 +48,7 @@ class LSTModel:
             data_aug_flip=False,
             dropout_fraction=0.3,
             add_other_phase_data=False,
+            same_prediction_over_id_measurement=False,
             plot_stats=True):
         """
         Args:
@@ -63,6 +64,7 @@ class LSTModel:
         self._plot_stats = plot_stats
         self._dropout_fraction = dropout_fraction
         self._add_other_phase_data = add_other_phase_data
+        self._same_prediction_over_id_measurement = same_prediction_over_id_measurement
         self._skip_features = [
             'diff_smoothend_by_1 Quant-0.25', 'diff_smoothend_by_1 Quant-0.75', 'diff_smoothend_by_1 abs_mean',
             'diff_smoothend_by_1 mean', 'diff_smoothend_by_16 Quant-0.25', 'diff_smoothend_by_16 Quant-0.75',
@@ -298,7 +300,17 @@ class LSTModel:
         assert y.shape == (examples_c, )
         return X, y
 
-    def predict(self, fname: str, meta_fname):
+    def predict(self, fname: str, meta_fname: str):
+        ser = self._predict(fname, meta_fname)
+        ser.index.name = 'signal_id'
+        if self._same_prediction_over_id_measurement:
+            ser = ser.to_frame('prediction')
+            meta_df = pd.read_csv(meta_fname).set_index('signal_id')
+            df = ser.join(meta_df[['id_measurement']], how='left')
+            return df.groupby('id_measurement').transform(max)['prediction']
+        return ser
+
+    def _predict(self, fname: str, meta_fname):
         """
         Using the self._n_splits(5) models, it returns a pandas.Series with values belonging to {0,1}
         """
