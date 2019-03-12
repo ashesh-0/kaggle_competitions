@@ -303,11 +303,16 @@ class LSTModel:
     def predict(self, fname: str, meta_fname: str):
         ser = self._predict(fname, meta_fname)
         ser.index.name = 'signal_id'
+
         if self._same_prediction_over_id_measurement:
             ser = ser.to_frame('prediction')
             meta_df = pd.read_csv(meta_fname).set_index('signal_id')
             df = ser.join(meta_df[['id_measurement']], how='left')
-            return df.groupby('id_measurement').transform(max)['prediction']
+            ser = df.groupby('id_measurement').transform(np.mean)['prediction']
+            ser[ser >= 0.5] = 1
+            ser[ser < 0.5] = 0
+            ser = ser.astype(int)
+
         return ser
 
     def _predict(self, fname: str, meta_fname):
