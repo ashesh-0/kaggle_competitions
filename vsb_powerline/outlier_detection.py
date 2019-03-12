@@ -3,13 +3,21 @@ import numpy as np
 from scipy import stats
 
 
-def get_outliers(df, outlier_z_score_abs_threshold, outlier_feature_fraction):
-    f1 = df.groupby('features').mean().drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
-    f2 = df.abs().groupby('features').mean().drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
-    f3 = df.groupby('features').std().drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
-    f4 = df.groupby('features').quantile(0.5).drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
-    f5 = df.groupby('features').quantile(0.1).drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
-    f6 = df.groupby('features').quantile(0.9).drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
+def get_outliers(df, outlier_z_score_abs_threshold=5, outlier_feature_fraction=0.3):
+    # features is level 1. ts is level 0.
+    f1 = df.groupby(df.columns.get_level_values(1), axis=1).mean()
+    f2 = df.abs().groupby(df.columns.get_level_values(1), axis=1).mean()
+    f3 = df.groupby(df.columns.get_level_values(1), axis=1).std()
+    f4 = df.groupby(df.columns.get_level_values(1), axis=1).quantile(0.5)
+    f5 = df.groupby(df.columns.get_level_values(1), axis=1).quantile(0.1)
+    f6 = df.groupby(df.columns.get_level_values(1), axis=1).quantile(0.9)
+
+    f1 = f1.drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
+    f2 = f2.drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
+    f3 = f3.drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
+    f4 = f4.drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
+    f5 = f5.drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
+    f6 = f6.drop(['diff_smoothend_by_1 Quant-0.0'], axis=0)
 
     outlier_feature_count = int(f1.shape[0] * outlier_feature_fraction)
     fs = [f1, f2, f3, f4, f5, f6]

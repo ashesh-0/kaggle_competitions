@@ -51,7 +51,7 @@ class LSTModel:
             add_other_phase_data=False,
             same_prediction_over_id_measurement=False,
             remove_outliers_from_training=False,
-            outlier_removal_args=None,
+            outlier_removal_kwrgs={},
             plot_stats=True):
         """
         Args:
@@ -69,7 +69,7 @@ class LSTModel:
         self._add_other_phase_data = add_other_phase_data
         self._same_prediction_over_id_measurement = same_prediction_over_id_measurement
         self._remove_outliers_from_training = remove_outliers_from_training
-        self._outlier_removal_kwargs = outlier_removal_args
+        self._outlier_removal_kwargs = outlier_removal_kwrgs
         self._skip_features = [
             'diff_smoothend_by_1 Quant-0.25', 'diff_smoothend_by_1 Quant-0.75', 'diff_smoothend_by_1 abs_mean',
             'diff_smoothend_by_1 mean', 'diff_smoothend_by_16 Quant-0.25', 'diff_smoothend_by_16 Quant-0.75',
