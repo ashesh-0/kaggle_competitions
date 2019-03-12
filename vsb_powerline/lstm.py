@@ -10,6 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 from keras import regularizers
 
 # from threadsafe_iterator import threadsafe
+from outlier_detection import get_outliers
 
 
 # It is the official metric used in this competition
@@ -49,6 +50,8 @@ class LSTModel:
             dropout_fraction=0.3,
             add_other_phase_data=False,
             same_prediction_over_id_measurement=False,
+            remove_outliers_from_training=False,
+            outlier_removal_args=None,
             plot_stats=True):
         """
         Args:
@@ -65,6 +68,8 @@ class LSTModel:
         self._dropout_fraction = dropout_fraction
         self._add_other_phase_data = add_other_phase_data
         self._same_prediction_over_id_measurement = same_prediction_over_id_measurement
+        self._remove_outliers_from_training = remove_outliers_from_training
+        self._outlier_removal_kwargs = outlier_removal_args
         self._skip_features = [
             'diff_smoothend_by_1 Quant-0.25', 'diff_smoothend_by_1 Quant-0.75', 'diff_smoothend_by_1 abs_mean',
             'diff_smoothend_by_1 mean', 'diff_smoothend_by_16 Quant-0.25', 'diff_smoothend_by_16 Quant-0.75',
@@ -293,6 +298,13 @@ class LSTModel:
         print('#ts', self._ts_c)
         print('#features', self._feature_c)
         print('data shape', processed_train_df.shape)
+
+        if self._remove_outliers_from_training:
+            outlier_filter = get_outliers(processed_train_df, **self._outlier_removal_kwargs)['outliers']
+            processed_train_df = processed_train_df.loc[outlier_filter]
+            y_df = y_df.loc[processed_train_df.index]
+            print('Removed', outlier_filter.sum(), 'many outlier entries from training data ')
+
         X = processed_train_df.values.reshape(examples_c, self._ts_c, self._feature_c)
         y = y_df.target.values
 

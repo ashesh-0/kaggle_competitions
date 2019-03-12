@@ -253,3 +253,33 @@ Now we have just 56 features, 200 timestamps. X shape (8712, 200, 56)
 Varying dropouts when dropout is placed just after input and after LSTM layer.
 It is clear case of underfitting. with 0.1 as rate, results are as low as 0.2 on training data.
 
+Here, I tried outlier detection to remove outliers from the data. We know that when target is 1, we expect more noise in data. So in a way those will tend to be the outliers. However, if there are outliers with target being 0,we need to remove them. Therefore, the idea here is that we need to pick such thresholds such that in outliers, the
+percentage of target variable being 1 is similar, if not less than what it is in the original data.
+
+    In original data, target class 1 is 6.03%
+
+    Outlier percent: 1.3%
+    Outlier count: 113
+    In outliers with thresh:5, frac:0.2, target class 1 is 34.51%
+
+    Outlier percent: 1.01%
+    Outlier count: 88
+    In outliers with thresh:5, frac:0.25, target class 1 is 28.41%
+
+    Outlier percent: 0.59%
+    Outlier count: 51
+    In outliers with thresh:5, frac:0.3, target class 1 is 13.73%
+
+    Outlier percent: 0.4%
+    Outlier count: 35
+    In outliers with thresh:5, frac:0.35, target class 1 is 8.57%
+
+    Outlier percent: 0.15%
+    Outlier count: 13
+    In outliers with thresh:5, frac:0.4, target class 1 is 7.69%
+
+    Outlier percent: 0.09%
+    Outlier count: 8
+    In outliers with thresh:5, frac:0.45, target class 1 is 12.5%
+
+We can therefore use outlier_z_score_abs_threshold as 5 and outlier_feature_fraction from {0.3, 0.35}
