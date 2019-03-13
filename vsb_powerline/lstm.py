@@ -269,7 +269,21 @@ class LSTModel:
         assert y.shape == (examples_c, )
         return X, y
 
-    def predict(self, fname: str, meta_fname):
+    def predict(self, fname: str, meta_fname: str):
+        ser = self._predict(fname, meta_fname)
+        ser.index.name = 'signal_id'
+
+        ser = ser.to_frame('prediction')
+        meta_df = pd.read_csv(meta_fname).set_index('signal_id')
+        df = ser.join(meta_df[['id_measurement']], how='left')
+        ser = df.groupby('id_measurement').transform(np.mean)['prediction']
+        ser[ser >= 0.5] = 1
+        ser[ser < 0.5] = 0
+        ser = ser.astype(int)
+
+        return ser
+
+    def _predict(self, fname: str, meta_fname):
         """
         Using the self._n_splits(5) models, it returns a pandas.Series with values belonging to {0,1}
         """

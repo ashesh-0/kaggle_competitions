@@ -69,8 +69,8 @@ class DataProcessor:
             smoothing_window: int = 3,
             remove_corona=False,
             corona_max_distance=5,
-            corona_max_height_ratio=0.8,
-            corona_cleanup_distance=10,
+            corona_max_height_ratio=0.3,
+            corona_cleanup_distance=100,
             num_processes: int = 7,
     ):
         self._o_steps = original_time_steps
