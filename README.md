@@ -253,3 +253,5 @@ Now we have just 56 features, 200 timestamps. X shape (8712, 200, 56)
 Varying dropouts when dropout is placed just after input and after LSTM layer.
 It is clear case of underfitting. with 0.1 as rate, results are as low as 0.2 on training data.
 
+
+I see that the difference in signal is coming in 0.95, 0.99 percentiles and not in 0.5 percentile. I'm therefore tweaking it to be that.

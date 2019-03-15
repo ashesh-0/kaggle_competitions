@@ -102,7 +102,7 @@ class DataProcessor:
     def peak_data(
             ser: pd.Series,
             threshold: float,
-            quantiles=[0, 0.25, 0.5, 0.75, 1],
+            quantiles=[0, 0.1, 0.5, 0.95, 0.99, 1],
     ) -> Dict[str, np.array]:
         maxima_peak_indices, maxima_data_dict = find_peaks(ser, threshold=threshold, width=0)
         maxima_width = maxima_data_dict['widths']
@@ -197,7 +197,7 @@ class DataProcessor:
         return ser
 
     @staticmethod
-    def peak_stats(ser: pd.Series, threshold, quantiles=[0, 0.25, 0.5, 0.75, 1]):
+    def peak_stats(ser: pd.Series, threshold, quantiles=[0, 0.1, 0.5, 0.95, 0.99, 1]):
         """
         Returns quantiles of peak width, height, distances from next peak.
         """
@@ -246,8 +246,8 @@ class DataProcessor:
         return df.apply(lambda x: DataProcessor.peak_stats(x, peak_threshold), axis=0)
 
     @staticmethod
-    def pandas_describe(df):
-        output_df = df.quantile([0, 0.25, 0.5, 0.75, 1], axis=0)
+    def pandas_describe(df, quantiles=[0, 0.1, 0.5, 0.95, 0.99, 1]):
+        output_df = df.quantile(quantiles, axis=0)
         output_df.index = list(map(lambda x: 'Quant-' + str(x), output_df.index.tolist()))
         abs_mean_df = df.abs().mean().to_frame('abs_mean')
         mean_df = df.mean().to_frame('mean')
