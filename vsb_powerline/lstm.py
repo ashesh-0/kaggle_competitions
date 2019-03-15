@@ -47,6 +47,8 @@ class LSTModel:
             data_aug_num_shifts=1,
             data_aug_flip=False,
             dropout_fraction=0.3,
+            remove_outliers_from_training=False,
+            outlier_removal_kwargs={},
             plot_stats=True):
         """
         Args:
@@ -61,6 +63,8 @@ class LSTModel:
         self._data_aug_flip = data_aug_flip
         self._plot_stats = plot_stats
         self._dropout_fraction = dropout_fraction
+        self._remove_outliers_from_training = remove_outliers_from_training
+        self._outlier_removal_kwargs = outlier_removal_kwargs
 
         self._skip_features = [
             'diff_smoothend_by_1 Quant-0.25', 'diff_smoothend_by_1 Quant-0.75', 'diff_smoothend_by_1 abs_mean',
@@ -254,6 +258,12 @@ class LSTModel:
         y_df = self.get_y_df()
         y_df = y_df.loc[processed_train_df.index]
 
+        if self._remove_outliers_from_training:
+            outlier_filter = get_outliers(processed_train_df, **self._outlier_removal_kwargs)['outliers']
+            processed_train_df = processed_train_df.loc[~outlier_filter]
+            y_df = y_df.loc[processed_train_df.index]
+            print('Removed', outlier_filter.sum(), 'many outlier entries from training data ')
+
         examples_c = processed_train_df.shape[0]
         self._ts_c = len(processed_train_df.columns.levels[0])
         self._feature_c = len(processed_train_df.columns.levels[1])
@@ -262,6 +272,7 @@ class LSTModel:
         print('#ts', self._ts_c)
         print('#features', self._feature_c)
         print('data shape', processed_train_df.shape)
+
         X = processed_train_df.values.reshape(examples_c, self._ts_c, self._feature_c)
         y = y_df.target.values
 
