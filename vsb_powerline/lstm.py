@@ -201,6 +201,28 @@ class LSTModel:
         print('Phase data added')
         return processed_data_df
 
+    @staticmethod
+    def add_ts_segment_feature(processed_data_df):
+        # add segment feature. from paper. (it is said that the 2nd and 4th component of sine wave has information and
+        # first and 3rd are non-informative )
+        segment_size = len(processed_data_df.columns.levels[0]) // 4
+        print('Adding segment data in one-hot encoding form')
+        for ts_index in processed_data_df.columns.levels[0]:
+            segment = ts_index // segment_size
+            segment_0 = 'segment_0'
+            segment_1 = 'segment_1'
+            segment_2 = 'segment_2'
+            segment_3 = 'segment_3'
+
+            processed_data_df[ts_index, segment_0] = int(segment == 0)
+            processed_data_df[ts_index, segment_1] = int(segment == 1)
+            processed_data_df[ts_index, segment_2] = int(segment == 2)
+            processed_data_df[ts_index, segment_3] = int(segment >= 3)
+
+            assert processed_data_df.iloc[0][ts_index][[segment_0, segment_1, segment_2, segment_3]].sum() == 1
+
+        return processed_data_df.sort_index(axis=1)
+
     def get_X_df(self, fname, meta_fname):
         processed_data_df = self.get_processed_data_df(fname)
 
@@ -211,7 +233,8 @@ class LSTModel:
         processed_data_df = processed_data_df.fillna(0)
         processed_data_df = self.add_phase_data(processed_data_df, meta_fname)
         assert not processed_data_df.isna().any().any(), 'Training data has nan'
-        return processed_data_df
+
+        return LSTModel.add_ts_segment_feature(processed_data_df)
 
     def get_X_in_parts_df(self, fname, meta_fname):
         processed_data_df = self.get_processed_data_df(fname)
@@ -240,11 +263,11 @@ class LSTModel:
             s_index = e_index
             e_index = s_index + chunksize
             print('Completed Test data preprocessing', round(e_index / sz * 100), '%')
-            yield data_df
+            yield LSTModel.add_ts_segment_feature(data_df)
 
         data_df = self.add_phase_data(processed_data_df.iloc[s_index:], meta_fname)
         assert not data_df.isna().any().any(), 'Training data has nan'
-        yield data_df
+        yield LSTModel.add_ts_segment_feature(data_df)
 
     def get_X_y(self):
         """

@@ -254,4 +254,7 @@ Varying dropouts when dropout is placed just after input and after LSTM layer.
 It is clear case of underfitting. with 0.1 as rate, results are as low as 0.2 on training data.
 
 
-I see that the difference in signal is coming in 0.95, 0.99 percentiles and not in 0.5 percentile. I'm therefore tweaking it to be that.
+Phase data is being added now. I've picked a stage when performance on LB was good.
+I see that the difference in signal is coming in 0.95, 0.99 percentiles and not in 0.5 percentile. I'm therefore tweaking it to be that.I also see that the corona removal doesn't seem to work. So I changed that a bit.
+
+In the meanwhile, on the basis of the paper, I added a feature which tells which of the four segments does a timestamp belong to. In the paper, it is mentioned that in 2nd and 4th segment of the sinosoidal signal, partial discharge happens more often than not. There is an improvement on dev set performance with that change.
