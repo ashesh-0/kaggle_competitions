@@ -65,7 +65,7 @@ class DataProcessor:
             self,
             intended_time_steps: int,
             original_time_steps: int,
-            peak_threshold: int,
+            peak_prominence: int,
             smoothing_window: int = 3,
             remove_corona=False,
             corona_max_distance=5,
@@ -80,7 +80,7 @@ class DataProcessor:
         # with 10, smoothened version seems to have some signals as well.
         self._smoothing_window = smoothing_window
         self._num_processes = num_processes
-        self._peak_threshold = peak_threshold
+        self._peak_prominence = peak_prominence
         self._remove_corona = remove_corona
         self._corona_max_distance = corona_max_distance
         self._corona_max_height_ratio = corona_max_height_ratio
@@ -101,14 +101,14 @@ class DataProcessor:
     @staticmethod
     def peak_data(
             ser: pd.Series,
-            threshold: float,
+            prominence: float,
             quantiles=[0, 0.1, 0.5, 0.95, 0.99, 1],
     ) -> Dict[str, np.array]:
-        maxima_peak_indices, maxima_data_dict = find_peaks(ser, threshold=threshold, width=0)
+        maxima_peak_indices, maxima_data_dict = find_peaks(ser, prominence=prominence, width=0)
         maxima_width = maxima_data_dict['widths']
         maxima_height = maxima_data_dict['prominences']
 
-        minima_peak_indices, minima_data_dict = find_peaks(-1 * ser, threshold=threshold, width=0)
+        minima_peak_indices, minima_data_dict = find_peaks(-1 * ser, prominence=prominence, width=0)
         minima_width = minima_data_dict['widths']
         minima_height = minima_data_dict['prominences']
 
@@ -132,20 +132,20 @@ class DataProcessor:
     @staticmethod
     def corona_discharge_index_pairs(
             ser: pd.Series,
-            peak_threshold: float,
+            peak_prominence: float,
             corona_max_distance: int,
             corona_max_height_ratio: float,
     ) -> List[Tuple[int, int]]:
         """
         Args:
             ser: time series data.
-            peak_threshold: for detecting peaks, if elevation is more than this value, then consider it a peak.
+            peak_prominence: for detecting peaks, if elevation is more than this value, then consider it a peak.
             corona_max_distance: maximum distance between consequitive alternative peaks for it to be a corona discharge.
             corona_max_height_ratio: the alternate peaks should have similar peak heights.
         Returns:
             List of (peak1, peak2) indices. Note that these peaks are consequitive and have opposite sign
         """
-        data = DataProcessor.peak_data(ser, peak_threshold)
+        data = DataProcessor.peak_data(ser, peak_prominence)
         corona_indices = []
         for index, data_index in enumerate(data['indices']):
             if index < len(data['indices']) - 1:
@@ -164,7 +164,7 @@ class DataProcessor:
     @staticmethod
     def remove_corona_discharge(
             ser: pd.Series,
-            peak_threshold: float,
+            peak_prominence: float,
             corona_max_distance: int,
             corona_max_height_ratio: float,
             corona_cleanup_distance: int,
@@ -172,7 +172,7 @@ class DataProcessor:
         """
         Args:
             ser: time series data.
-            peak_threshold: for detecting peaks, if elevation is more than this value, then consider it a peak.
+            peak_prominence: for detecting peaks, if elevation is more than this value, then consider it a peak.
             corona_max_distance: maximum distance between consequitive alternative peaks for it to be a corona discharge.
             corona_max_height_ratio: the alternate peaks should have similar peak heights.
             corona_cleanup_distance: how many indices after the corona discharge should the data be removed.
@@ -181,10 +181,11 @@ class DataProcessor:
         """
         pairs = DataProcessor.corona_discharge_index_pairs(
             ser,
-            peak_threshold,
+            peak_prominence,
             corona_max_distance,
             corona_max_height_ratio,
         )
+        print('[Corona discharge peaks removal]', len(pairs), 'many peaks removed')
         ser = ser.copy()
         for start_index, end_index in pairs:
             smoothing_start_index = max(0, start_index - 1)
@@ -192,16 +193,17 @@ class DataProcessor:
             start_val = ser.iloc[smoothing_start_index]
             end_val = ser.iloc[smoothing_end_index]
             count = smoothing_end_index - smoothing_start_index
+
             ser.iloc[smoothing_start_index:smoothing_end_index] = np.linspace(start_val, end_val, count)
 
         return ser
 
     @staticmethod
-    def peak_stats(ser: pd.Series, threshold, quantiles=[0, 0.1, 0.5, 0.95, 0.99, 1]):
+    def peak_stats(ser: pd.Series, prominence, quantiles=[0, 0.1, 0.5, 0.95, 0.99, 1]):
         """
         Returns quantiles of peak width, height, distances from next peak.
         """
-        data = DataProcessor.peak_data(ser, threshold, quantiles=quantiles)
+        data = DataProcessor.peak_data(ser, prominence, quantiles=quantiles)
         peak_indices = data['indices']
         peak_width = data['width']
         peak_height = data['height']
@@ -236,14 +238,14 @@ class DataProcessor:
         return pd.Series(data, index=index)
 
     @staticmethod
-    def get_peak_stats_df(df, peak_threshold):
+    def get_peak_stats_df(df, peak_prominence):
         """
         Args:
             df:
                 columns are different examples.
                 axis is time series.
         """
-        return df.apply(lambda x: DataProcessor.peak_stats(x, peak_threshold), axis=0)
+        return df.apply(lambda x: DataProcessor.peak_stats(x, peak_prominence), axis=0)
 
     @staticmethod
     def pandas_describe(df, quantiles=[0, 0.1, 0.5, 0.95, 0.99, 1]):
@@ -255,7 +257,7 @@ class DataProcessor:
         return pd.concat([output_df, abs_mean_df.T, mean_df.T, std_df.T])
 
     @staticmethod
-    def transform_chunk(signal_time_series_df: pd.DataFrame, peak_threshold: float) -> pd.DataFrame:
+    def transform_chunk(signal_time_series_df: pd.DataFrame, peak_prominence: float) -> pd.DataFrame:
         """
         It sqashes the time series to a single point multi featured vector.
         """
@@ -263,7 +265,7 @@ class DataProcessor:
         # mean, var, percentile.
         # NOTE pandas.describe() is the costliest computation with 95% time of the function.
         metrics_df = DataProcessor.pandas_describe(df)
-        peak_metrics_df = DataProcessor.get_peak_stats_df(df, peak_threshold)
+        peak_metrics_df = DataProcessor.get_peak_stats_df(df, peak_prominence)
 
         metrics_df.index = list(map(lambda x: 'signal_' + x, metrics_df.index))
         temp_metrics = [metrics_df, peak_metrics_df]
@@ -288,7 +290,7 @@ class DataProcessor:
         def cleanup_corona(x: pd.Series):
             return DataProcessor.remove_corona_discharge(
                 x,
-                self._peak_threshold,
+                self._peak_prominence,
                 self._corona_max_distance,
                 self._corona_max_height_ratio,
                 self._corona_cleanup_distance,
@@ -310,7 +312,7 @@ class DataProcessor:
             e_tm_index = s_tm_index + stepsize
             # NOTE: dask was leading to memory leak.
             #one_data_point = delayed(DataProcessor.transform_chunk)(X_df.iloc[s_tm_index:e_tm_index, :])
-            one_data_point = DataProcessor.transform_chunk(X_df.iloc[s_tm_index:e_tm_index, :], self._peak_threshold)
+            one_data_point = DataProcessor.transform_chunk(X_df.iloc[s_tm_index:e_tm_index, :], self._peak_prominence)
             transformed_data.append(one_data_point)
 
         # transformed_data = dd.compute(*transformed_data, scheduler='processes', num_workers=self._num_processes)
