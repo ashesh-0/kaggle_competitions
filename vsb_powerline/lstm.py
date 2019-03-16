@@ -234,6 +234,7 @@ class LSTModel:
         processed_data_df = self.add_phase_data(processed_data_df, meta_fname)
         assert not processed_data_df.isna().any().any(), 'Training data has nan'
 
+        processed_data_df.columns = processed_data_df.columns.remove_unused_levels()
         return LSTModel.add_ts_segment_feature(processed_data_df)
 
     def get_X_in_parts_df(self, fname, meta_fname):
