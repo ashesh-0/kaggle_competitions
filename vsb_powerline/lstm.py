@@ -163,6 +163,7 @@ class LSTModel:
         return df.set_index('signal_id')
 
     def add_phase_data(self, processed_data_df, meta_fname):
+
         print('Phase data is about to be added')
         metadata_df = pd.read_csv(meta_fname).set_index('signal_id')
         processed_data_df = processed_data_df.join(metadata_df[['id_measurement']], how='left')
@@ -227,8 +228,8 @@ class LSTModel:
         processed_data_df = self.get_processed_data_df(fname)
 
         # NOTE: there are 8 columns which are being zero. one needs to fix it.
-        assert processed_data_df.isna().any(axis=0).sum() <= 8
-        assert processed_data_df.isna().all(axis=0).sum() <= 8
+        assert processed_data_df.isna().any(axis=0).sum() <= 9, processed_data_df.isna().any(axis=0).sum()
+        assert processed_data_df.isna().all(axis=0).sum() <= 9, processed_data_df.isna().all(axis=0).sum()
 
         processed_data_df = processed_data_df.fillna(0)
         processed_data_df = self.add_phase_data(processed_data_df, meta_fname)
@@ -241,8 +242,8 @@ class LSTModel:
         processed_data_df = self.get_processed_data_df(fname)
 
         # NOTE: there are 8 columns which are being zero. one needs to fix it.
-        assert processed_data_df.isna().any(axis=0).sum() <= 8
-        assert processed_data_df.isna().all(axis=0).sum() <= 8
+        assert processed_data_df.isna().any(axis=0).sum() <= 9
+        assert processed_data_df.isna().all(axis=0).sum() <= 9
 
         processed_data_df = processed_data_df.fillna(0)
         meta_df = pd.read_csv(meta_fname)
