@@ -15,6 +15,14 @@ class FeatureExtraction:
         self._segment_size = segment_size
         self._validation_fraction = validation_fraction
 
+        # to be set while fetching validation data/training data.
+        # number of training examples to be given to model
+        self.train_size = None
+        # number of validation examples to be given to model
+        self.validation_size = None
+        # number of datapoints in training data file.
+        self._raw_train_size = None
+
         assert self._segment_size % self._ts_size == 0
         assert self._validation_fraction >= 0
 
@@ -44,32 +52,41 @@ class FeatureExtraction:
         y_df = self.get_y(df)
         return (X_df, y_df)
 
+    def _set_train_validation_size(self):
+        # We ensure that last few segments are not used in training data. We use it for validation.
+        num_segments = self._raw_train_size // self._segment_size
+
+        validation_segments = int(self._validation_fraction * num_segments)
+        train_segments = num_segments - validation_segments
+
+        self.train_size = int(train_segments * self._segment_size / self._ts_size)
+        self.validation_size = int(validation_segments * self._segment_size / self._ts_size)
+        print('Validation Size', self.validation_size)
+        print('Train Size', self.train_size)
+
     def get_validation_X_y(self, fname):
         if self._validation_fraction == 0:
             return (pd.DataFrame(), pd.Series())
 
         df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
-        # We ensure that last few segments are not used in training data. We use it for validation.
-        num_segments = df.shape[0] // self._segment_size
-        validation_segments = int(self._validation_fraction * num_segments)
-        return self.get_X_y(df.iloc[-1 * validation_segments * self._segment_size:])
+        if self._raw_train_size is None:
+            self._raw_train_size = df.shape[0]
+            self._set_train_validation_size()
+
+        return self.get_X_y(df.iloc[-1 * self.validation_size * self._ts_size:])
 
     def get_X_y_generator(self, fname: str, padding_row_count: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
         assert padding_row_count % self._ts_size == 0
 
         df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
-
-        # We ensure that last few segments are not used in training data. We use it for validation.
-        num_segments = df.shape[0] // self._segment_size
-        validation_segments = int(self._validation_fraction * num_segments)
-        train_segments = num_segments - validation_segments
-
-        print('Validation Size', validation_segments * self._segment_size / self._ts_size)
-        print('Train Size', train_segments * self._segment_size / self._ts_size)
+        if self._raw_train_size is None:
+            self._raw_train_size = df.shape[0]
+            self._set_train_validation_size()
 
         next_first_index = 0
-        for start_index in range(0, train_segments * self._segment_size, self._segment_size):
+        # We ensure that last few segments are not used in training data. We use it for validation.
+        for start_index in range(0, self.train_size * self._ts_size, self._segment_size):
             padded_start_index = max(0, start_index - padding_row_count)
             X_df, y_df = self.get_X_y(df.iloc[padded_start_index:(start_index + self._segment_size)])
             X_df.index += next_first_index
@@ -95,12 +112,14 @@ class Data:
             self,
             ts_window: int,
             ts_size: int,
-            validation_fraction: float = 0.8,
+            validation_fraction: float = 0.2,
             segment_size: int = 150_000,
     ):
         self._ts_window = ts_window
         self._ts_size = ts_size
         self._validation_fraction = validation_fraction
+        self._segment_size = segment_size
+
         self._feature_extractor = FeatureExtraction(
             self._ts_size,
             self._validation_fraction,
@@ -114,6 +133,16 @@ class Data:
         for i in range(self._ts_window, X_df.shape[0] + 1):
             X[i - self._ts_window] = X_df.values[i - self._ts_window:i, :]
         return X
+
+    def training_size(self):
+        """
+        Returns number of examples to be used in training.
+        """
+        return self._feature_extractor.train_size
+
+    def batch_size(self):
+        # 150_000
+        return self._segment_size // self._ts_size
 
     def get_window_y(self, y_df: pd.Series) -> np.array:
         return y_df.values[self._ts_window - 1:]
@@ -134,6 +163,7 @@ class Data:
         return (X, y)
 
     def get_X_y_generator(self, fname: str) -> Tuple[np.array, np.array]:
+
         # we need self._ts_window -1 rows at beginning to cater to starting data points in a chunk.
         padding = self._ts_size * (self._ts_window - 1)
         gen = self._feature_extractor.get_X_y_generator(fname, padding)
