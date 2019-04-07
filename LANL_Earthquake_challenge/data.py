@@ -9,8 +9,9 @@ class FeatureExtraction:
     def ___init__(self, ts_size: int):
         # Number of entries which make up one time stamp. note that features are learnt from this many datapoints
         self._ts_size = ts_size
+        assert FeatureExtraction.TEST_SEGMENT_SIZE % self._ts_size == 0
 
-    def get_y(self, df: pd.DataFrame) -> pd.DataFrame:
+    def get_y(self, df: pd.DataFrame) -> pd.Series:
         df = df[['time_to_failure']].copy()
         ts_count = df.shape[0] // self._ts_size
         df['ts'] = np.repeat(list(range(ts_count)), self._ts_size)
@@ -22,6 +23,7 @@ class FeatureExtraction:
         """
         Index is #example_id,#timestamp_id. Columns are features.
         """
+        # TODO: this is where more features will come in.
         df = df[['acoustic_data']].copy()
         ts_count = df.shape[0] // self._ts_size
         df['ts'] = np.repeat(list(range(ts_count)), self._ts_size)
