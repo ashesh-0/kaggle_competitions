@@ -5,11 +5,18 @@ from tqdm import tqdm
 
 
 class FeatureExtraction:
-    def __init__(self, ts_size: int, segment_size: int = 150_000):
+    """
+    Class is responsible for creating features from the data.
+    """
+
+    def __init__(self, ts_size: int, validation_fraction: float, segment_size: int = 150_000):
         # Number of entries which make up one time stamp. note that features are learnt from this many datapoints
         self._ts_size = ts_size
         self._segment_size = segment_size
+        self._validation_fraction = validation_fraction
+
         assert self._segment_size % self._ts_size == 0
+        assert self._validation_fraction >= 0
 
     def get_y(self, df: pd.DataFrame) -> pd.Series:
         df = df[['time_to_failure']].copy()
@@ -37,31 +44,68 @@ class FeatureExtraction:
         y_df = self.get_y(df)
         return (X_df, y_df)
 
+    def get_validation_X_y(self, fname):
+        if self._validation_fraction == 0:
+            return (pd.DataFrame(), pd.Series())
+
+        df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
+        # We ensure that last few segments are not used in training data. We use it for validation.
+        num_segments = df.shape[0] // self._segment_size
+        validation_segments = int(self._validation_fraction * num_segments)
+        return self.get_X_y(df.iloc[-1 * validation_segments * self._segment_size:])
+
     def get_X_y_generator(self, fname: str, padding_row_count: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
         assert padding_row_count % self._ts_size == 0
 
         df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
-        chunk_size = self._segment_size
+
+        # We ensure that last few segments are not used in training data. We use it for validation.
+        num_segments = df.shape[0] // self._segment_size
+        validation_segments = int(self._validation_fraction * num_segments)
+        train_segments = num_segments - validation_segments
+
+        print('Validation Size', validation_segments * self._segment_size / self._ts_size)
+        print('Train Size', train_segments * self._segment_size / self._ts_size)
 
         next_first_index = 0
-        for start_index in range(0, df.shape[0], chunk_size):
+        for start_index in range(0, train_segments * self._segment_size, self._segment_size):
             padded_start_index = max(0, start_index - padding_row_count)
-            X_df, y_df = self.get_X_y(df.iloc[padded_start_index:(start_index + chunk_size)])
+            X_df, y_df = self.get_X_y(df.iloc[padded_start_index:(start_index + self._segment_size)])
             X_df.index += next_first_index
             y_df.index += next_first_index
 
             # if it padding is non zero, few entries from last segment will come in next segment
-            next_first_index = y_df.index[-(1 + padding_row_count // self._ts_size)] + 1
+            padded_first_entry_index = (1 + padding_row_count // self._ts_size)
+            # the if-else is a corner case. If padding is more than segment_size then this will happen.
+            if padded_first_entry_index <= y_df.shape[0]:
+                next_first_index = y_df.index[-1 * padded_first_entry_index] + 1
+            else:
+                next_first_index = 0
 
             yield (X_df, y_df)
 
 
 class Data:
-    def __init__(self, ts_window: int, ts_size: int):
+    """
+    This class uses FeatureExtraction class and creates a time sequence data.
+    """
+
+    def __init__(
+            self,
+            ts_window: int,
+            ts_size: int,
+            validation_fraction: float = 0.8,
+            segment_size: int = 150_000,
+    ):
         self._ts_window = ts_window
         self._ts_size = ts_size
-        self._feature_extractor = FeatureExtraction(self._ts_size)
+        self._validation_fraction = validation_fraction
+        self._feature_extractor = FeatureExtraction(
+            self._ts_size,
+            self._validation_fraction,
+            segment_size=segment_size,
+        )
 
     def get_window_X(self, X_df: pd.DataFrame) -> np.array:
         row_count = X_df.shape[0] - self._ts_window + 1
@@ -77,6 +121,16 @@ class Data:
     def get_window_X_y(self, X_df, y_df) -> Tuple[np.array, np.array]:
         X = self.get_window_X(X_df)
         y = self.get_window_y(y_df)
+        return (X, y)
+
+    def get_validation_X_y(self, fname: str) -> Tuple[np.array, np.array]:
+        """
+        Returns last few segments of training data for validation. Note that this is not used in
+        training, ie, this is not returned from get_X_y_generator()
+        """
+
+        X_df, y_df = self._feature_extractor.get_validation_X_y(fname)
+        X, y = self.get_window_X_y(X_df, y_df)
         return (X, y)
 
     def get_X_y_generator(self, fname: str) -> Tuple[np.array, np.array]:

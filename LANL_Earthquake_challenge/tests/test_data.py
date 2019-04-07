@@ -28,7 +28,8 @@ def mock_read_csv(*args, **kwargs):
 class TestFeatureExtraction:
     def test_get_X_y(self):
         ts_size = 3
-        ex = FeatureExtraction(ts_size)
+        validation_fraction = 0
+        ex = FeatureExtraction(ts_size, validation_fraction)
         X_df, y_df = ex.get_X_y(test_df)
 
         assert X_df.shape[0] == y_df.shape[0]
@@ -48,7 +49,8 @@ class TestFeatureExtraction:
         ts_size = 2
         segment_size = 4
         padding = 0
-        ex = FeatureExtraction(ts_size, segment_size=segment_size)
+        validation_fraction = 0
+        ex = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
         gen = ex.get_X_y_generator('', padding)
 
         expected_y = test_df['time_to_failure'].shift(-1 * ts_size + 1)[::ts_size]
@@ -67,7 +69,12 @@ class TestFeatureExtraction:
         ts_size = 2
         segment_size = 6
         padding = 2
-        ex = FeatureExtraction(ts_size, segment_size=segment_size)
+        validation_fraction = 0
+        ex = FeatureExtraction(
+            ts_size,
+            validation_fraction=validation_fraction,
+            segment_size=segment_size,
+        )
         gen = ex.get_X_y_generator('', padding * ts_size)
 
         expected_y = test_df['time_to_failure'].shift(-1 * ts_size + 1)[::ts_size]
@@ -93,10 +100,11 @@ class TestData:
         ts_size = 2
         segment_size = 6
         ts_window = 3
-        fe = FeatureExtraction(ts_size, segment_size=segment_size)
+        validation_fraction = 0
+        fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
         X_df, y_df = fe.get_X_y(test_df)
 
-        dt = Data(ts_window, ts_size)
+        dt = Data(ts_window, ts_size, validation_fraction=0, segment_size=segment_size)
         X, y = dt.get_window_X_y(X_df, y_df)
         assert X.shape == (X_df.shape[0] - ts_window + 1, ts_window, X_df.shape[1])
         assert y.shape == (X_df.shape[0] - ts_window + 1, )
@@ -114,10 +122,11 @@ class TestData:
         ts_size = 2
         segment_size = 6
         ts_window = 3
-        fe = FeatureExtraction(ts_size, segment_size=segment_size)
+        validation_fraction = 0
+        fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
         X_df, y_df = fe.get_X_y(test_df)
 
-        dt = Data(ts_window, ts_size)
+        dt = Data(ts_window, ts_size, validation_fraction=0, segment_size=segment_size)
         # get X and y from whole data.
         X_whole, y_whole = dt.get_window_X_y(X_df, y_df)
 
@@ -130,3 +139,38 @@ class TestData:
             last_index += X.shape[0]
 
         assert last_index == X_whole.shape[0]
+
+    @patch('data.pd.read_csv', side_effect=mock_read_csv)
+    def test_validation_data_should_be_separate_from_train_data(self, mock_):
+        ts_size = 2
+        segment_size = 4
+        ts_window = 1
+        validation_fraction = 0
+        fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
+        X_df, y_df = fe.get_X_y(test_df)
+        dt = Data(ts_window, ts_size, validation_fraction=0, segment_size=segment_size)
+        # get X and y from whole data.
+        X_whole, y_whole = dt.get_window_X_y(X_df, y_df)
+
+        validation_fraction = 0.8
+        dt = Data(
+            ts_window,
+            ts_size,
+            validation_fraction=validation_fraction,
+            segment_size=segment_size,
+        )
+        # now X and y are fetched from generator and we ensure that it matches completely with above data.
+        gen = dt.get_X_y_generator('')
+        first_index = 0
+        for X, y in gen:
+            assert (X == X_whole[first_index:first_index + X.shape[0]]).all()
+            assert (y == y_whole[first_index:first_index + y.shape[0]]).all()
+            first_index += X.shape[0]
+
+        # Only first segment in training data.
+        assert first_index == 2
+
+        val_X, val_y = dt.get_validation_X_y('')
+        assert val_X.shape[0] == 4
+        assert (val_X == X_whole[2:]).all()
+        assert (val_y == y_whole[2:]).all()
