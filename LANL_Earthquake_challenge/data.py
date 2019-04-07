@@ -1,12 +1,13 @@
 from typing import Tuple
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
 
 
 class FeatureExtraction:
     TEST_SEGMENT_SIZE = 150_000
 
-    def ___init__(self, ts_size: int):
+    def __init__(self, ts_size: int):
         # Number of entries which make up one time stamp. note that features are learnt from this many datapoints
         self._ts_size = ts_size
         assert FeatureExtraction.TEST_SEGMENT_SIZE % self._ts_size == 0
@@ -37,9 +38,9 @@ class FeatureExtraction:
         return (X_df, y_df)
 
     def get_X_y_generator(self, fname: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        df = pd.read_csv('../input/train.csv', dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
+        df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
         chunk_size = FeatureExtraction.TEST_SEGMENT_SIZE
-        for start_index in range(0, df.shape, chunk_size):
+        for start_index in range(0, df.shape[0], chunk_size):
             X_df, y_df = self.get_X_y(df.iloc[start_index:(start_index + chunk_size)])
             yield (X_df, y_df)
 
@@ -53,8 +54,8 @@ class Data:
     def get_window_X(self, X_df: pd.DataFrame) -> np.array:
         row_count = X_df.shape[0] - self._ts_window + 1
 
-        X = np.zeros(row_count, self._ts_window, X_df.shape[1])
-        for i in range(self._ts_window, X_df.shape):
+        X = np.zeros((row_count, self._ts_window, X_df.shape[1]))
+        for i in range(self._ts_window, X_df.shape[0]):
             X[i - self._ts_window] = X_df.values[i - self._ts_window:i, :]
         return X
 
@@ -68,6 +69,15 @@ class Data:
 
     def get_X_y_generator(self, fname: str) -> Tuple[np.array, np.array]:
         gen = self._feature_extractor.get_X_y_generator(fname)
-        for X_df, y_df in gen:
+        for X_df, y_df in tqdm(gen):
             X, y = self.get_window_X_y(X_df, y_df)
             yield (X, y)
+
+
+if __name__ == '__main__':
+    ts_window = 100
+    ts_size = 1000
+    d = Data(ts_window, ts_size)
+    gen = d.get_X_y_generator('train.csv')
+    for X, y in gen:
+        pass
