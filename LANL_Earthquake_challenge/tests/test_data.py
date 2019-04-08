@@ -22,15 +22,28 @@ test_df = pd.DataFrame(
 
 
 def mock_read_csv(*args, **kwargs):
+    gen = _mock_read_csv(*args, **kwargs)
+    if 'chunksize' in kwargs:
+        return gen
+
+    return list(gen)[0]
+
+
+def _mock_read_csv(*args, **kwargs):
     output_df = test_df
 
     if 'skiprows' in kwargs:
         output_df = output_df.iloc[kwargs['skiprows']:]
+        yield output_df.copy()
 
     if 'nrows' in kwargs:
         output_df = output_df.iloc[:kwargs['nrows']]
+        yield output_df.copy()
 
-    return output_df.copy()
+    if 'chunksize' in kwargs:
+        for start_index in range(0, test_df.shape[0], kwargs['chunksize']):
+            output_df = test_df.iloc[start_index:start_index + kwargs['chunksize']]
+            yield output_df
 
 
 def mock_csv_row_count(fname):
@@ -83,7 +96,7 @@ class TestFeatureExtraction:
     def test_get_X_y_generator_with_padding(self, mock_row, mock_read):
         ts_size = 2
         segment_size = 6
-        padding = 2
+        padding = 1
         validation_fraction = 0
         test_mode = True
         ex = FeatureExtraction(
@@ -103,7 +116,8 @@ class TestFeatureExtraction:
             if i == 0:
                 assert y_df.shape[0] == X_df.shape[0] == (segment_size / ts_size)
             else:
-                assert y_df.shape[0] == X_df.shape[0] == (segment_size / ts_size + padding)
+                assert y_df.shape[0] == X_df.shape[0]
+                assert y_df.shape[0] == (segment_size / ts_size + padding)
 
             assert expected_y[max(0, i * num_ts_in_segment - padding):(i + 1) * num_ts_in_segment].equals(y_df)
 
@@ -232,6 +246,7 @@ class TestData:
             validation_fraction=validation_fraction,
             segment_size=segment_size,
             normalize=True,
+            ls_batch_size=segment_size,
         )
 
         # now X and y are fetched from generator and we ensure that it matches completely with above data.

@@ -22,7 +22,7 @@ class FeatureExtraction:
     Class is responsible for creating features from the data.
     """
 
-    def __init__(self, ts_size: int, validation_fraction: float, segment_size: int = 150_000):
+    def __init__(self, ts_size: int, validation_fraction: float, segment_size: int = 150_000, ls_batch_size=None):
         """
         Args:
             ts_size: how many data points become one timestamp.
@@ -32,6 +32,9 @@ class FeatureExtraction:
         # Number of entries which make up one time stamp. note that features are learnt from this many datapoints
         self._ts_size = ts_size
         self._segment_size = segment_size
+        # just for test. In prod, 100*self._segment_size is used.
+        self._learn_scale_batch_size = ls_batch_size if ls_batch_size else 100 * self._segment_size
+
         self._validation_fraction = validation_fraction
 
         # to be set while fetching validation data/training data.
@@ -80,7 +83,7 @@ class FeatureExtraction:
         logging.info('Scale about to be learnt')
 
         self._scale_df = scale_df = None
-        gen = self.get_X_y_generator(fname, 0, True)
+        gen = self.get_X_y_generator(fname, 0, True, batch_size=self._learn_scale_batch_size)
         for X_df, _ in gen:
             max_df = X_df.abs().max()
             if scale_df is None:
@@ -141,49 +144,54 @@ class FeatureExtraction:
         logging.info('Validation data returned.')
         return output_df
 
-    def get_X_y_generator(self, fname: str, padding_row_count: int,
-                          test_mode: bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def get_X_y_generator(self, fname: str, padding_row_count: int, test_mode: bool,
+                          batch_size=None) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         test_mode: if True, then it returns entire training data in chunks only once. If False, it keeps
             returning chunks in cyclic order.
         """
         assert padding_row_count % self._ts_size == 0
+        if batch_size is None:
+            batch_size = self._segment_size
 
         if self._raw_train_size is None:
             self._raw_train_size = csv_row_count(fname)
             self._set_train_validation_size()
 
-        # read the column names
-        dummy_df = pd.read_csv(
-            fname,
-            dtype={'acoustic_data': np.int16,
-                   'time_to_failure': np.float64},
-            nrows=3,
-        )
-
         while True:
+            prev_df = None
             logging.info('Training X,y generator starting from beginning')
+            # print('Training X,y generator starting from beginning')
             next_first_index = 0
-            # We ensure that last few segments are not used in training data. We use it for validation.
-            for start_index in tqdm(range(0, self.train_size * self._ts_size, self._segment_size)):
-                padded_start_index = max(0, start_index - padding_row_count)
-                df = pd.read_csv(
+            for df in pd.read_csv(
                     fname,
                     dtype={'acoustic_data': np.int16,
                            'time_to_failure': np.float64},
-                    nrows=start_index + self._segment_size - padded_start_index,
-                    skiprows=padded_start_index,
-                )
-                df.columns = dummy_df.columns
-                X_df, y_df = self.get_X_y(df)
+                    chunksize=batch_size,
+            ):
+                # We ensure that last few segments are not used in training data. We use it for validation.
+                if next_first_index >= self.train_size:
+                    break
+
+                # assert next_first_index < self.train_size
+
+                if prev_df is not None and padding_row_count > 0:
+                    padded_df = pd.concat([prev_df.iloc[-1 * padding_row_count:], df])
+                else:
+                    padded_df = df
+
+                X_df, y_df = self.get_X_y(padded_df)
                 X_df.index += next_first_index
                 y_df.index += next_first_index
 
+                prev_df = df
                 # if it padding is non zero, few entries from last segment will come in next segment
                 padded_first_entry_index = (1 + padding_row_count // self._ts_size)
                 # the if-else is a corner case. If padding is more than segment_size then this will happen.
-                if padded_first_entry_index <= y_df.shape[0]:
-                    next_first_index = y_df.index[-1 * padded_first_entry_index] + 1
+                if padding_row_count == 0:
+                    next_first_index = y_df.index[-1] + 1
+                elif padded_first_entry_index <= y_df.shape[0]:
+                    next_first_index = y_df.index[-1 * padded_first_entry_index + 1]
                 else:
                     next_first_index = 0
 
@@ -207,6 +215,7 @@ class Data:
             normalize: bool = True,
             validation_fraction: float = 0.2,
             segment_size: int = 150_000,
+            ls_batch_size: int = None,
     ):
         self._ts_window = ts_window
         self._ts_size = ts_size
@@ -217,6 +226,7 @@ class Data:
             self._ts_size,
             self._validation_fraction,
             segment_size=segment_size,
+            ls_batch_size=ls_batch_size,
         )
 
         self._normalize = normalize
@@ -266,7 +276,7 @@ class Data:
         # We need self._ts_window -1 rows at beginning to cater to starting data points in a chunk.
         padding = self._ts_size * (self._ts_window - 1)
         gen = self._feature_extractor.get_X_y_generator(self._train_fname, padding, test_mode=test_mode)
-        for X_df, y_df in gen:
+        for X_df, y_df in tqdm(gen):
             X, y = self.get_window_X_y(X_df, y_df)
             yield (X, y)
 
