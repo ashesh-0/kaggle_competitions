@@ -50,8 +50,9 @@ class TestFeatureExtraction:
         segment_size = 4
         padding = 0
         validation_fraction = 0
+        test_mode = True
         ex = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
-        gen = ex.get_X_y_generator('', padding)
+        gen = ex.get_X_y_generator('', padding, test_mode)
 
         expected_y = test_df['time_to_failure'].shift(-1 * ts_size + 1)[::ts_size]
         expected_y.index = list(range(test_df.shape[0] // ts_size))
@@ -70,12 +71,13 @@ class TestFeatureExtraction:
         segment_size = 6
         padding = 2
         validation_fraction = 0
+        test_mode = True
         ex = FeatureExtraction(
             ts_size,
             validation_fraction=validation_fraction,
             segment_size=segment_size,
         )
-        gen = ex.get_X_y_generator('', padding * ts_size)
+        gen = ex.get_X_y_generator('', padding * ts_size, test_mode)
 
         expected_y = test_df['time_to_failure'].shift(-1 * ts_size + 1)[::ts_size]
         expected_y.index = list(range(test_df.shape[0] // ts_size))
@@ -125,13 +127,13 @@ class TestData:
         validation_fraction = 0
         fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
         X_df, y_df = fe.get_X_y(test_df)
-
+        test_mode = True
         dt = Data(ts_window, ts_size, validation_fraction=0, segment_size=segment_size)
         # get X and y from whole data.
         X_whole, y_whole = dt.get_window_X_y(X_df, y_df)
 
         # now X and y are fetched from generator and we ensure that it matches completely with above data.
-        gen = dt.get_X_y_generator('')
+        gen = dt.get_X_y_generator('', test_mode=test_mode)
         last_index = 0
         for X, y in gen:
             assert (X == X_whole[last_index:last_index + X.shape[0]]).all()
@@ -146,6 +148,7 @@ class TestData:
         segment_size = 4
         ts_window = 1
         validation_fraction = 0
+        test_mode = True
         fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
         X_df, y_df = fe.get_X_y(test_df)
         dt = Data(ts_window, ts_size, validation_fraction=0, segment_size=segment_size)
@@ -159,8 +162,9 @@ class TestData:
             validation_fraction=validation_fraction,
             segment_size=segment_size,
         )
+
         # now X and y are fetched from generator and we ensure that it matches completely with above data.
-        gen = dt.get_X_y_generator('')
+        gen = dt.get_X_y_generator('', test_mode=test_mode)
         first_index = 0
         for X, y in gen:
             assert (X == X_whole[first_index:first_index + X.shape[0]]).all()
