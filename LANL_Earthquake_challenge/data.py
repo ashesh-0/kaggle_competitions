@@ -3,10 +3,18 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import gc
+import logging
 
 
 def csv_row_count(fname):
-    return sum(1 for line in open(fname)) - 1
+    line_count = 0
+    with open(fname) as f:
+        for line in f:
+            line_count += 1
+
+    gc.collect()
+    # skip column names row
+    return line_count - 1
 
 
 class FeatureExtraction:
@@ -69,6 +77,8 @@ class FeatureExtraction:
         """
         Learns scale for normalization from training data. it does not touch validation data.
         """
+        logging.info('Scale about to be learnt')
+
         self._scale_df = scale_df = None
         gen = self.get_X_y_generator(fname, 0, True)
         for X_df, _ in gen:
@@ -80,6 +90,8 @@ class FeatureExtraction:
             gc.collect()
 
         self._scale_df = scale_df
+
+        logging.info('Scale learnt')
 
     def get_X_y(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         X_df = self.get_X(df)
@@ -99,6 +111,7 @@ class FeatureExtraction:
         print('Train Size', self.train_size)
 
     def get_validation_X_y(self, fname):
+        logging.info('Validation data requested.')
         if self._validation_fraction == 0:
             return (pd.DataFrame(), pd.Series())
 
@@ -123,7 +136,10 @@ class FeatureExtraction:
 
         df.columns = dummy_df.columns
 
-        return self.get_X_y(df)
+        output_df = self.get_X_y(df)
+
+        logging.info('Validation data returned.')
+        return output_df
 
     def get_X_y_generator(self, fname: str, padding_row_count: int,
                           test_mode: bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -146,9 +162,10 @@ class FeatureExtraction:
         )
 
         while True:
+            logging.info('Training X,y generator starting from beginning')
             next_first_index = 0
             # We ensure that last few segments are not used in training data. We use it for validation.
-            for start_index in range(0, self.train_size * self._ts_size, self._segment_size):
+            for start_index in tqdm(range(0, self.train_size * self._ts_size, self._segment_size)):
                 padded_start_index = max(0, start_index - padding_row_count)
                 df = pd.read_csv(
                     fname,
@@ -249,7 +266,7 @@ class Data:
         # We need self._ts_window -1 rows at beginning to cater to starting data points in a chunk.
         padding = self._ts_size * (self._ts_window - 1)
         gen = self._feature_extractor.get_X_y_generator(self._train_fname, padding, test_mode=test_mode)
-        for X_df, y_df in tqdm(gen):
+        for X_df, y_df in gen:
             X, y = self.get_window_X_y(X_df, y_df)
             yield (X, y)
 
