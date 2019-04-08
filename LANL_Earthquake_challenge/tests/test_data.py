@@ -22,7 +22,17 @@ test_df = pd.DataFrame(
 
 
 def mock_read_csv(*args, **kwargs):
-    return test_df.copy()
+    if 'nrows' in kwargs:
+        return test_df.iloc[:kwargs['nrows']]
+
+    elif 'skiprows' in kwargs:
+        return test_df.iloc[kwargs['skiprows'] - 1:]
+    else:
+        return test_df.copy()
+
+
+def mock_csv_row_count(fname):
+    return test_df.shape[0]
 
 
 class TestFeatureExtraction:
@@ -45,7 +55,8 @@ class TestFeatureExtraction:
         assert X_df['mean'].iloc[3] == test_df['acoustic_data'].iloc[3 * ts_size:4 * ts_size].mean()
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    def test_get_X_y_generator(self, mock_r):
+    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
+    def test_get_X_y_generator(self, mock_row, mock_read):
         ts_size = 2
         segment_size = 4
         padding = 0
@@ -66,7 +77,8 @@ class TestFeatureExtraction:
         assert (i + 1) == test_df.shape[0] / segment_size
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    def test_get_X_y_generator_with_padding(self, mock_r):
+    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
+    def test_get_X_y_generator_with_padding(self, mock_row, mock_read):
         ts_size = 2
         segment_size = 6
         padding = 2
@@ -98,7 +110,8 @@ class TestFeatureExtraction:
 
 class TestData:
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    def test_get_window_X_y(self, mock_):
+    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
+    def test_get_window_X_y(self, mock_row, mock_read):
         ts_size = 2
         segment_size = 6
         ts_window = 3
@@ -116,7 +129,8 @@ class TestData:
                 assert all(X[i, j, :] == X_df.values[i + j, :])
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    def test_get_X_y_generator(self, mock_):
+    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
+    def test_get_X_y_generator(self, mock_row, mock_read):
         """
         Tests that whether one computes X,y in one go or computes through generator, resulting data is the same.
         """
@@ -142,7 +156,8 @@ class TestData:
         assert last_index == X_whole.shape[0]
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    def test_validation_data_should_be_separate_from_train_data(self, mock_):
+    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
+    def test_validation_data_should_be_separate_from_train_data(self, mock_row, mock_read):
         ts_size = 2
         segment_size = 4
         ts_window = 1
@@ -188,7 +203,8 @@ class TestData:
         assert (val_y == y_whole[2:]).all()
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    def test_normalization_should_not_include_validation_data(self, mock_):
+    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
+    def test_normalization_should_not_include_validation_data(self, mock_row, mock_read):
         ts_size = 2
         segment_size = 4
         ts_window = 1

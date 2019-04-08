@@ -2,6 +2,11 @@ from typing import Tuple
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import gc
+
+
+def csv_row_count(fname):
+    return sum(1 for line in open(fname)) - 1
 
 
 class FeatureExtraction:
@@ -72,6 +77,7 @@ class FeatureExtraction:
                 scale_df = max_df
             else:
                 scale_df = pd.concat([scale_df, max_df], axis=1).max(axis=1)
+            gc.collect()
 
         self._scale_df = scale_df
 
@@ -96,12 +102,28 @@ class FeatureExtraction:
         if self._validation_fraction == 0:
             return (pd.DataFrame(), pd.Series())
 
-        df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
         if self._raw_train_size is None:
-            self._raw_train_size = df.shape[0]
+            self._raw_train_size = csv_row_count(fname)
             self._set_train_validation_size()
 
-        return self.get_X_y(df.iloc[-1 * self.validation_size * self._ts_size:])
+        # read the column names
+        dummy_df = pd.read_csv(
+            fname,
+            dtype={'acoustic_data': np.int16,
+                   'time_to_failure': np.float64},
+            nrows=3,
+        )
+
+        df = pd.read_csv(
+            fname,
+            dtype={'acoustic_data': np.int16,
+                   'time_to_failure': np.float64},
+            skiprows=self.train_size * self._ts_size + 1,
+        )
+
+        df.columns = dummy_df.columns
+
+        return self.get_X_y(df)
 
     def get_X_y_generator(self, fname: str, padding_row_count: int,
                           test_mode: bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -113,7 +135,7 @@ class FeatureExtraction:
 
         df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
         if self._raw_train_size is None:
-            self._raw_train_size = df.shape[0]
+            self._raw_train_size = csv_row_count(fname)
             self._set_train_validation_size()
 
         while True:
@@ -134,6 +156,9 @@ class FeatureExtraction:
                     next_first_index = 0
 
                 yield (X_df, y_df)
+
+                del X_df
+                del y_df
 
             if test_mode:
                 break
