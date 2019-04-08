@@ -22,13 +22,15 @@ test_df = pd.DataFrame(
 
 
 def mock_read_csv(*args, **kwargs):
-    if 'nrows' in kwargs:
-        return test_df.iloc[:kwargs['nrows']]
+    output_df = test_df
 
-    elif 'skiprows' in kwargs:
-        return test_df.iloc[kwargs['skiprows'] - 1:]
-    else:
-        return test_df.copy()
+    if 'skiprows' in kwargs:
+        output_df = output_df.iloc[kwargs['skiprows']:]
+
+    if 'nrows' in kwargs:
+        output_df = output_df.iloc[:kwargs['nrows']]
+
+    return output_df.copy()
 
 
 def mock_csv_row_count(fname):

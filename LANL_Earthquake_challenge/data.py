@@ -118,7 +118,7 @@ class FeatureExtraction:
             fname,
             dtype={'acoustic_data': np.int16,
                    'time_to_failure': np.float64},
-            skiprows=self.train_size * self._ts_size + 1,
+            skiprows=self.train_size * self._ts_size,
         )
 
         df.columns = dummy_df.columns
@@ -133,17 +133,32 @@ class FeatureExtraction:
         """
         assert padding_row_count % self._ts_size == 0
 
-        df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
         if self._raw_train_size is None:
             self._raw_train_size = csv_row_count(fname)
             self._set_train_validation_size()
+
+        # read the column names
+        dummy_df = pd.read_csv(
+            fname,
+            dtype={'acoustic_data': np.int16,
+                   'time_to_failure': np.float64},
+            nrows=3,
+        )
 
         while True:
             next_first_index = 0
             # We ensure that last few segments are not used in training data. We use it for validation.
             for start_index in range(0, self.train_size * self._ts_size, self._segment_size):
                 padded_start_index = max(0, start_index - padding_row_count)
-                X_df, y_df = self.get_X_y(df.iloc[padded_start_index:(start_index + self._segment_size)])
+                df = pd.read_csv(
+                    fname,
+                    dtype={'acoustic_data': np.int16,
+                           'time_to_failure': np.float64},
+                    nrows=start_index + self._segment_size - padded_start_index,
+                    skiprows=padded_start_index,
+                )
+                df.columns = dummy_df.columns
+                X_df, y_df = self.get_X_y(df)
                 X_df.index += next_first_index
                 y_df.index += next_first_index
 
@@ -156,9 +171,7 @@ class FeatureExtraction:
                     next_first_index = 0
 
                 yield (X_df, y_df)
-
-                del X_df
-                del y_df
+                gc.collect()
 
             if test_mode:
                 break
