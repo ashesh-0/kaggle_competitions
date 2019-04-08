@@ -10,6 +10,12 @@ class FeatureExtraction:
     """
 
     def __init__(self, ts_size: int, validation_fraction: float, segment_size: int = 150_000):
+        """
+        Args:
+            ts_size: how many data points become one timestamp.
+            validation_fraction: fraction of data segments used for validation
+            segment_size: number of datapoints to be considered one segment. it is same as batch_size*ts_size.
+        """
         # Number of entries which make up one time stamp. note that features are learnt from this many datapoints
         self._ts_size = ts_size
         self._segment_size = segment_size
@@ -22,6 +28,9 @@ class FeatureExtraction:
         self.validation_size = None
         # number of datapoints in training data file.
         self._raw_train_size = None
+
+        # Used for normalization. Contains the maximum absolute value for a feature.
+        self._scale_df = None
 
         assert self._segment_size % self._ts_size == 0
         assert self._validation_fraction >= 0
@@ -45,7 +54,26 @@ class FeatureExtraction:
         output_df = df.groupby('ts').describe()['acoustic_data']
         output_df.columns.name = 'features'
         output_df = output_df.drop('count', axis=1)
+
+        if self._scale_df is not None:
+            output_df = output_df / self._scale_df
+
         return output_df
+
+    def learn_scale(self, fname):
+        """
+        Learns scale for normalization from training data. it does not touch validation data.
+        """
+        self._scale_df = scale_df = None
+        gen = self.get_X_y_generator(fname, 0, True)
+        for X_df, _ in gen:
+            max_df = X_df.abs().max()
+            if scale_df is None:
+                scale_df = max_df
+            else:
+                scale_df = pd.concat([scale_df, max_df], axis=1).max(axis=1)
+
+        self._scale_df = scale_df
 
     def get_X_y(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         X_df = self.get_X(df)
@@ -77,7 +105,10 @@ class FeatureExtraction:
 
     def get_X_y_generator(self, fname: str, padding_row_count: int,
                           test_mode: bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
-
+        """
+        test_mode: if True, then it returns entire training data in chunks only once. If False, it keeps
+            returning chunks in cyclic order.
+        """
         assert padding_row_count % self._ts_size == 0
 
         df = pd.read_csv(fname, dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
@@ -117,6 +148,8 @@ class Data:
             self,
             ts_window: int,
             ts_size: int,
+            train_fname: str,
+            normalize: bool = True,
             validation_fraction: float = 0.2,
             segment_size: int = 150_000,
     ):
@@ -124,12 +157,19 @@ class Data:
         self._ts_size = ts_size
         self._validation_fraction = validation_fraction
         self._segment_size = segment_size
-
+        self._train_fname = train_fname
         self._feature_extractor = FeatureExtraction(
             self._ts_size,
             self._validation_fraction,
             segment_size=segment_size,
         )
+
+        self._normalize = normalize
+
+        if self._normalize:
+            # Learn scale.
+            self._feature_extractor.learn_scale(self._train_fname)
+            print('[Data] Scale learnt')
 
     def get_window_X(self, X_df: pd.DataFrame) -> np.array:
         row_count = X_df.shape[0] - self._ts_window + 1
@@ -157,21 +197,20 @@ class Data:
         y = self.get_window_y(y_df)
         return (X, y)
 
-    def get_validation_X_y(self, fname: str) -> Tuple[np.array, np.array]:
+    def get_validation_X_y(self) -> Tuple[np.array, np.array]:
         """
         Returns last few segments of training data for validation. Note that this is not used in
         training, ie, this is not returned from get_X_y_generator()
         """
 
-        X_df, y_df = self._feature_extractor.get_validation_X_y(fname)
+        X_df, y_df = self._feature_extractor.get_validation_X_y(self._train_fname)
         X, y = self.get_window_X_y(X_df, y_df)
         return (X, y)
 
-    def get_X_y_generator(self, fname: str, test_mode: bool = False) -> Tuple[np.array, np.array]:
-
-        # we need self._ts_window -1 rows at beginning to cater to starting data points in a chunk.
+    def get_X_y_generator(self, test_mode: bool = False) -> Tuple[np.array, np.array]:
+        # We need self._ts_window -1 rows at beginning to cater to starting data points in a chunk.
         padding = self._ts_size * (self._ts_window - 1)
-        gen = self._feature_extractor.get_X_y_generator(fname, padding, test_mode=test_mode)
+        gen = self._feature_extractor.get_X_y_generator(self._train_fname, padding, test_mode=test_mode)
         for X_df, y_df in tqdm(gen):
             X, y = self.get_window_X_y(X_df, y_df)
             yield (X, y)

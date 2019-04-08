@@ -105,8 +105,7 @@ class TestData:
         validation_fraction = 0
         fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
         X_df, y_df = fe.get_X_y(test_df)
-
-        dt = Data(ts_window, ts_size, validation_fraction=0, segment_size=segment_size)
+        dt = Data(ts_window, ts_size, '', validation_fraction=0, segment_size=segment_size, normalize=False)
         X, y = dt.get_window_X_y(X_df, y_df)
         assert X.shape == (X_df.shape[0] - ts_window + 1, ts_window, X_df.shape[1])
         assert y.shape == (X_df.shape[0] - ts_window + 1, )
@@ -128,12 +127,12 @@ class TestData:
         fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
         X_df, y_df = fe.get_X_y(test_df)
         test_mode = True
-        dt = Data(ts_window, ts_size, validation_fraction=0, segment_size=segment_size)
+        dt = Data(ts_window, ts_size, '', validation_fraction=0, segment_size=segment_size, normalize=False)
         # get X and y from whole data.
         X_whole, y_whole = dt.get_window_X_y(X_df, y_df)
 
         # now X and y are fetched from generator and we ensure that it matches completely with above data.
-        gen = dt.get_X_y_generator('', test_mode=test_mode)
+        gen = dt.get_X_y_generator(test_mode=test_mode)
         last_index = 0
         for X, y in gen:
             assert (X == X_whole[last_index:last_index + X.shape[0]]).all()
@@ -151,7 +150,14 @@ class TestData:
         test_mode = True
         fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
         X_df, y_df = fe.get_X_y(test_df)
-        dt = Data(ts_window, ts_size, validation_fraction=0, segment_size=segment_size)
+        dt = Data(
+            ts_window,
+            ts_size,
+            '',
+            validation_fraction=0,
+            segment_size=segment_size,
+            normalize=False,
+        )
         # get X and y from whole data.
         X_whole, y_whole = dt.get_window_X_y(X_df, y_df)
 
@@ -159,12 +165,14 @@ class TestData:
         dt = Data(
             ts_window,
             ts_size,
+            '',
             validation_fraction=validation_fraction,
             segment_size=segment_size,
+            normalize=False,
         )
 
         # now X and y are fetched from generator and we ensure that it matches completely with above data.
-        gen = dt.get_X_y_generator('', test_mode=test_mode)
+        gen = dt.get_X_y_generator(test_mode=test_mode)
         first_index = 0
         for X, y in gen:
             assert (X == X_whole[first_index:first_index + X.shape[0]]).all()
@@ -174,7 +182,54 @@ class TestData:
         # Only first segment in training data.
         assert first_index == 2
 
-        val_X, val_y = dt.get_validation_X_y('')
+        val_X, val_y = dt.get_validation_X_y()
         assert val_X.shape[0] == 4
         assert (val_X == X_whole[2:]).all()
+        assert (val_y == y_whole[2:]).all()
+
+    @patch('data.pd.read_csv', side_effect=mock_read_csv)
+    def test_normalization_should_not_include_validation_data(self, mock_):
+        ts_size = 2
+        segment_size = 4
+        ts_window = 1
+        validation_fraction = 0
+        test_mode = True
+        fe = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
+        X_df, y_df = fe.get_X_y(test_df)
+        dt = Data(
+            ts_window,
+            ts_size,
+            '',
+            validation_fraction=0,
+            segment_size=segment_size,
+            normalize=False,
+        )
+        # get X and y from whole data.
+        X_whole, y_whole = dt.get_window_X_y(X_df, y_df)
+        validation_fraction = 0.8
+        dt = Data(
+            ts_window,
+            ts_size,
+            '',
+            validation_fraction=validation_fraction,
+            segment_size=segment_size,
+            normalize=True,
+        )
+
+        # now X and y are fetched from generator and we ensure that it matches completely with above data.
+        gen = dt.get_X_y_generator(test_mode=test_mode)
+        first_index = 0
+
+        scale = X_df.iloc[:2].abs().max().values
+        for X, y in gen:
+            assert (X == X_whole[first_index:first_index + X.shape[0]] / scale).all()
+            assert (y == y_whole[first_index:first_index + y.shape[0]]).all()
+            first_index += X.shape[0]
+
+        # Only first segment in training data.
+        assert first_index == 2
+
+        val_X, val_y = dt.get_validation_X_y()
+        assert val_X.shape[0] == 4
+        assert (val_X == X_whole[2:] / scale).all()
         assert (val_y == y_whole[2:]).all()

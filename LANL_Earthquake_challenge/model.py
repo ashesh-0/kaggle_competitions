@@ -21,14 +21,14 @@ class Model:
         return model
 
     def fit(self, fname, epochs):
-        data = Data(self._ts_window, self._ts_size)
-        X_val, y_val = data.get_validation_X_y(fname)
+        data = Data(self._ts_window, self._ts_size, fname)
+        X_val, y_val = data.get_validation_X_y()
         feature_count = X_val.shape[2]
         model = self.get_model(feature_count)
         steps_per_epoch = int(data.training_size() / data.batch_size())
         # Train
         history = model.fit_generator(
-            data.get_X_y_generator(fname),
+            data.get_X_y_generator(),
             epochs=epochs,
             validation_data=[X_val, y_val],
             # callbacks=[ckpt],
