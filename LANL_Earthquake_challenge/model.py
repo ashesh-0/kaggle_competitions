@@ -1,6 +1,6 @@
 from keras.optimizers import adam
 from keras.models import Sequential
-from keras.layers import CuDNNGRU, Dense, SimpleRNN
+from keras.layers import CuDNNGRU, Dense
 from data import Data
 
 
@@ -13,7 +13,7 @@ class Model:
 
     def get_model(self, feature_count):
         model = Sequential()
-        model.add(SimpleRNN(self._hidden_lsize, input_shape=(self._ts_window, feature_count)))
+        model.add(CuDNNGRU(self._hidden_lsize, input_shape=(self._ts_window, feature_count)))
         model.add(Dense(self._hidden_lsize // 2, activation='relu'))
         model.add(Dense(1))
         model.compile(optimizer=adam(lr=self._learning_rate), loss="mse")
