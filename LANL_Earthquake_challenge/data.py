@@ -39,6 +39,9 @@ class FeatureExtraction:
         # Used for normalization. Contains the maximum absolute value for a feature.
         self._scale_df = None
 
+        self._train_X_dfs = []
+        self._train_y_dfs = []
+
         assert self._segment_size % self._ts_size == 0
         assert self._validation_fraction >= 0
 
@@ -84,15 +87,25 @@ class FeatureExtraction:
         gc.collect()
         return output_df
 
-    def learn_scale(self, raw_data_df):
+    def learn_scale_and_save_train_df(self, raw_data_df):
         """
         Learns scale for normalization from training data. it does not touch validation data.
         """
         logging.info('Scale about to be learnt')
+        self._train_X_dfs = []
+        self._train_y_dfs = []
+
+        train_X_dfs = []
+        train_y_dfs = []
 
         self._scale_df = scale_df = None
-        gen = self.get_X_y_generator(raw_data_df, 0, True, batch_size=self._learn_scale_batch_size)
-        for X_df, _ in gen:
+        gen = self.get_X_y_generator(raw_data_df, 0, True, batch_size=self._segment_size)
+
+        for X_df, y_df in gen:
+            #
+            train_X_dfs.append(X_df)
+            train_y_dfs.append(y_df)
+
             max_df = X_df.abs().max()
             if scale_df is None:
                 scale_df = max_df
@@ -103,6 +116,8 @@ class FeatureExtraction:
         self._scale_df = scale_df
 
         logging.info('Scale learnt')
+        self._train_X_dfs = train_X_dfs
+        self._train_y_dfs = train_y_dfs
 
     def get_X_y(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         X_df = self.get_X(df)
@@ -143,6 +158,12 @@ class FeatureExtraction:
 
         logging.info('Validation data returned.')
         return (val_X_df, val_y_df)
+
+    def get_X_y_generator_fast(self):
+        while True:
+            logging.info('Training X,y generator fast starting from beginning')
+            for X_df, y_df in zip(self._train_X_dfs, self._train_y_dfs):
+                yield (X_df, y_df)
 
     def get_X_y_generator(self, raw_data_df, padding_row_count: int, test_mode: bool,
                           batch_size=None) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -222,7 +243,7 @@ class Data:
 
         if self._normalize:
             # Learn scale.
-            self._feature_extractor.learn_scale(self.raw_data_df)
+            self._feature_extractor.learn_scale_and_save_train_df(self.raw_data_df)
             print('[Data] Scale learnt')
 
     def get_window_X(self, X_df: pd.DataFrame) -> np.array:
@@ -264,7 +285,9 @@ class Data:
     def get_X_y_generator(self, test_mode: bool = False) -> Tuple[np.array, np.array]:
         # We need self._ts_window -1 rows at beginning to cater to starting data points in a chunk.
         padding = self._ts_size * (self._ts_window - 1)
-        gen = self._feature_extractor.get_X_y_generator(self.raw_data_df, padding, test_mode=test_mode)
+        # gen = self._feature_extractor.get_X_y_generator(self.raw_data_df, padding, test_mode=test_mode)
+        gen = self._feature_extractor.get_X_y_generator_fast()
+
         for X_df, y_df in tqdm(gen):
             X, y = self.get_window_X_y(X_df, y_df)
             yield (X, y)

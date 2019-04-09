@@ -22,32 +22,11 @@ test_df = pd.DataFrame(
 
 
 def mock_read_csv(*args, **kwargs):
-    gen = _mock_read_csv(*args, **kwargs)
-    if 'chunksize' in kwargs:
-        return gen
-
-    return list(gen)[0]
+    return test_df
 
 
-def _mock_read_csv(*args, **kwargs):
-    output_df = test_df
-
-    if 'skiprows' in kwargs:
-        output_df = output_df.iloc[kwargs['skiprows']:]
-        yield output_df.copy()
-
-    if 'nrows' in kwargs:
-        output_df = output_df.iloc[:kwargs['nrows']]
-        yield output_df.copy()
-
-    if 'chunksize' in kwargs:
-        for start_index in range(0, test_df.shape[0], kwargs['chunksize']):
-            output_df = test_df.iloc[start_index:start_index + kwargs['chunksize']]
-            yield output_df
-
-
-def mock_csv_row_count(fname):
-    return test_df.shape[0]
+# def mock_csv_row_count(fname):
+#     return test_df.shape[0]
 
 
 class TestFeatureExtraction:
@@ -70,15 +49,14 @@ class TestFeatureExtraction:
         assert X_df['mean'].iloc[3] == test_df['acoustic_data'].iloc[3 * ts_size:4 * ts_size].mean()
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
-    def test_get_X_y_generator(self, mock_row, mock_read):
+    def test_get_X_y_generator(self, mock_read):
         ts_size = 2
         segment_size = 4
         padding = 0
         validation_fraction = 0
         test_mode = True
         ex = FeatureExtraction(ts_size, validation_fraction, segment_size=segment_size)
-        gen = ex.get_X_y_generator('', padding, test_mode)
+        gen = ex.get_X_y_generator(test_df, padding, test_mode)
 
         expected_y = test_df['time_to_failure'].shift(-1 * ts_size + 1)[::ts_size]
         expected_y.index = list(range(test_df.shape[0] // ts_size))
@@ -92,8 +70,7 @@ class TestFeatureExtraction:
         assert (i + 1) == test_df.shape[0] / segment_size
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
-    def test_get_X_y_generator_with_padding(self, mock_row, mock_read):
+    def test_get_X_y_generator_with_padding(self, mock_read):
         ts_size = 2
         segment_size = 6
         padding = 1
@@ -104,7 +81,7 @@ class TestFeatureExtraction:
             validation_fraction=validation_fraction,
             segment_size=segment_size,
         )
-        gen = ex.get_X_y_generator('', padding * ts_size, test_mode)
+        gen = ex.get_X_y_generator(test_df, padding * ts_size, test_mode)
 
         expected_y = test_df['time_to_failure'].shift(-1 * ts_size + 1)[::ts_size]
         expected_y.index = list(range(test_df.shape[0] // ts_size))
@@ -126,8 +103,7 @@ class TestFeatureExtraction:
 
 class TestData:
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
-    def test_get_window_X_y(self, mock_row, mock_read):
+    def test_get_window_X_y(self, mock_read):
         ts_size = 2
         segment_size = 6
         ts_window = 3
@@ -145,8 +121,7 @@ class TestData:
                 assert all(X[i, j, :] == X_df.values[i + j, :])
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
-    def test_get_X_y_generator(self, mock_row, mock_read):
+    def test_get_X_y_generator(self, mock_read):
         """
         Tests that whether one computes X,y in one go or computes through generator, resulting data is the same.
         """
@@ -172,8 +147,7 @@ class TestData:
         assert last_index == X_whole.shape[0]
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
-    def test_validation_data_should_be_separate_from_train_data(self, mock_row, mock_read):
+    def test_validation_data_should_be_separate_from_train_data(self, mock_read):
         ts_size = 2
         segment_size = 4
         ts_window = 1
@@ -219,8 +193,7 @@ class TestData:
         assert (val_y == y_whole[2:]).all()
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
-    @patch('data.csv_row_count', side_effect=mock_csv_row_count)
-    def test_normalization_should_not_include_validation_data(self, mock_row, mock_read):
+    def test_normalization_should_not_include_validation_data(self, mock_read):
         ts_size = 2
         segment_size = 4
         ts_window = 1
