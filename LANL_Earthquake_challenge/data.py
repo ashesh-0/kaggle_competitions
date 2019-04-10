@@ -99,10 +99,10 @@ class FeatureExtraction:
         train_y_dfs = []
 
         self._scale_df = scale_df = None
-        gen = self.get_X_y_generator(raw_data_df, 0, True, batch_size=self._segment_size)
+        gen = self.get_X_y_generator(raw_data_df, 0, batch_size=self._learn_scale_batch_size)
 
         for X_df, y_df in gen:
-            #
+            gc.collect()
             train_X_dfs.append(X_df)
             train_y_dfs.append(y_df)
 
@@ -111,12 +111,11 @@ class FeatureExtraction:
                 scale_df = max_df
             else:
                 scale_df = pd.concat([scale_df, max_df], axis=1).max(axis=1)
-            gc.collect()
 
         self._scale_df = scale_df
 
         logging.info('Scale learnt')
-        self._train_X_dfs = train_X_dfs
+        self._train_X_dfs = [df / self._scale_df for df in train_X_dfs]
         self._train_y_dfs = train_y_dfs
 
     def get_X_y(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -159,18 +158,46 @@ class FeatureExtraction:
         logging.info('Validation data returned.')
         return (val_X_df, val_y_df)
 
-    def get_X_y_generator_fast(self):
+    def get_X_y_generator_fast(self, padding_row_count, debug_mode=False):
+        assert self._learn_scale_batch_size % self._segment_size == 0
+        assert padding_row_count % self._ts_size == 0
+        assert len(self._train_X_dfs) > 0 or self._raw_train_size < self._ts_size
+
+        padding_row_count = padding_row_count // self._ts_size
+        segment_size_row_count = self._segment_size // self._ts_size
+
         while True:
             logging.info('Training X,y generator fast starting from beginning')
-            for X_df, y_df in zip(self._train_X_dfs, self._train_y_dfs):
-                yield (X_df, y_df)
+            prev_X_df = None
+            prev_y_df = None
+            for X_chunk_df, y_chunk_df in zip(self._train_X_dfs, self._train_y_dfs):
+                for start_index in range(0, X_chunk_df.shape[0], segment_size_row_count):
+                    padding_start_index = start_index - padding_row_count
 
-    def get_X_y_generator(self, raw_data_df, padding_row_count: int, test_mode: bool,
+                    if padding_start_index >= 0:
+                        X_df = X_chunk_df.iloc[padding_start_index:start_index + segment_size_row_count]
+                        y_df = y_chunk_df.iloc[padding_start_index:start_index + segment_size_row_count]
+                        prev_X_df = X_df
+                        prev_y_df = y_df
+                        yield (X_df, y_df)
+                    else:
+                        X_df = X_chunk_df.iloc[:start_index + segment_size_row_count]
+                        y_df = y_chunk_df.iloc[:start_index + segment_size_row_count]
+
+                        if prev_X_df is not None:
+                            X_df = pd.concat([prev_X_df.iloc[padding_start_index:], X_df])
+                            y_df = pd.concat([prev_y_df.iloc[padding_start_index:], y_df])
+
+                        prev_X_df = X_df
+                        prev_y_df = y_df
+                        yield (X_df, y_df)
+
+            if debug_mode:
+                break
+
+    def get_X_y_generator(self, raw_data_df, padding_row_count: int,
                           batch_size=None) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """
-        test_mode: if True, then it returns entire training data in chunks only once. If False, it keeps
-            returning chunks in cyclic order.
-        """
+
         assert padding_row_count % self._ts_size == 0
         if batch_size is None:
             batch_size = self._segment_size
@@ -179,31 +206,27 @@ class FeatureExtraction:
             self._raw_train_size = raw_data_df.shape[0]
             self._set_train_validation_size()
 
-        while True:
-            logging.info('Training X,y generator starting from beginning')
-            next_first_index = 0
-            for start_index in tqdm(range(0, self.train_size * self._ts_size, batch_size)):
-                df = raw_data_df.iloc[max(0, start_index - padding_row_count):start_index + batch_size]
+        logging.info('Training X,y generator starting from beginning')
+        next_first_index = 0
+        for start_index in tqdm(range(0, self.train_size * self._ts_size, batch_size)):
+            df = raw_data_df.iloc[max(0, start_index - padding_row_count):start_index + batch_size]
 
-                X_df, y_df = self.get_X_y(df)
-                X_df.index += next_first_index
-                y_df.index += next_first_index
-                gc.collect()
+            X_df, y_df = self.get_X_y(df)
+            X_df.index += next_first_index
+            y_df.index += next_first_index
+            gc.collect()
 
-                # if it padding is non zero, few entries from last segment will come in next segment
-                padded_first_entry_index = (1 + padding_row_count // self._ts_size)
-                # the if-else is a corner case. If padding is more than segment_size then this will happen.
-                if padding_row_count == 0:
-                    next_first_index = y_df.index[-1] + 1
-                elif padded_first_entry_index <= y_df.shape[0]:
-                    next_first_index = y_df.index[-1 * padded_first_entry_index + 1]
-                else:
-                    next_first_index = 0
+            # if it padding is non zero, few entries from last segment will come in next segment
+            padded_first_entry_index = (1 + padding_row_count // self._ts_size)
+            # the if-else is a corner case. If padding is more than segment_size then this will happen.
+            if padding_row_count == 0:
+                next_first_index = y_df.index[-1] + 1
+            elif padded_first_entry_index <= y_df.shape[0]:
+                next_first_index = y_df.index[-1 * padded_first_entry_index + 1]
+            else:
+                next_first_index = 0
 
-                yield (X_df, y_df)
-
-            if test_mode:
-                break
+            yield (X_df, y_df)
 
 
 class Data:
@@ -282,11 +305,21 @@ class Data:
         X, y = self.get_window_X_y(X_df, y_df)
         return (X, y)
 
-    def get_X_y_generator(self, test_mode: bool = False) -> Tuple[np.array, np.array]:
+    def get_test_X(self, fname: str) -> np.array:
+        """
+        For Test data, it fetches data from file and returns the X with shape
+             (#examples, self._ts_window, feature_count)
+        """
+        gc.collect()
+        df = pd.read_csv(fname, dtype={'acoustic_data': np.int16})
+        X_df = self._feature_extractor.get_X(df)
+        return self.get_window_X(X_df)
+
+    def get_X_y_generator(self, debug_mode: bool = False) -> Tuple[np.array, np.array]:
         # We need self._ts_window -1 rows at beginning to cater to starting data points in a chunk.
         padding = self._ts_size * (self._ts_window - 1)
         # gen = self._feature_extractor.get_X_y_generator(self.raw_data_df, padding, test_mode=test_mode)
-        gen = self._feature_extractor.get_X_y_generator_fast()
+        gen = self._feature_extractor.get_X_y_generator_fast(padding, debug_mode=debug_mode)
 
         for X_df, y_df in tqdm(gen):
             X, y = self.get_window_X_y(X_df, y_df)
