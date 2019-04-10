@@ -49,7 +49,7 @@ class FeatureExtraction:
         df = df[['time_to_failure']].copy()
         ts_count = df.shape[0] // self._ts_size
         if df.shape[0] != ts_count * self._ts_size:
-            logging.warn('For y, Trimming last ', df.shape[0] - ts_count * self._ts_size, 'entries')
+            logging.warn('For y, Trimming last {} entries'.format(df.shape[0] - ts_count * self._ts_size))
             df = df.iloc[:ts_count * self._ts_size]
 
         df['ts'] = np.repeat(list(range(ts_count)), self._ts_size)
@@ -66,7 +66,7 @@ class FeatureExtraction:
         ts_count = df.shape[0] // self._ts_size
 
         if df.shape[0] != ts_count * self._ts_size:
-            logging.warn('For X, Trimming last ', df.shape[0] - ts_count * self._ts_size, 'entries')
+            logging.warn('For X, Trimming last {} entries'.format(df.shape[0] - ts_count * self._ts_size))
             df = df.iloc[:ts_count * self._ts_size]
 
         df['ts'] = np.repeat(list(range(ts_count)), self._ts_size)
@@ -208,7 +208,7 @@ class FeatureExtraction:
 
         logging.info('Training X,y generator starting from beginning')
         next_first_index = 0
-        for start_index in tqdm(range(0, self.train_size * self._ts_size, batch_size)):
+        for start_index in range(0, self.train_size * self._ts_size, batch_size):
             df = raw_data_df.iloc[max(0, start_index - padding_row_count):start_index + batch_size]
 
             X_df, y_df = self.get_X_y(df)
@@ -305,13 +305,12 @@ class Data:
         X, y = self.get_window_X_y(X_df, y_df)
         return (X, y)
 
-    def get_test_X(self, fname: str) -> np.array:
+    def get_test_X(self, df) -> np.array:
         """
         For Test data, it fetches data from file and returns the X with shape
              (#examples, self._ts_window, feature_count)
         """
         gc.collect()
-        df = pd.read_csv(fname, dtype={'acoustic_data': np.int16})
         X_df = self._feature_extractor.get_X(df)
         return self.get_window_X(X_df)
 
@@ -321,7 +320,7 @@ class Data:
         # gen = self._feature_extractor.get_X_y_generator(self.raw_data_df, padding, test_mode=test_mode)
         gen = self._feature_extractor.get_X_y_generator_fast(padding, debug_mode=debug_mode)
 
-        for X_df, y_df in tqdm(gen):
+        for X_df, y_df in gen:
             X, y = self.get_window_X_y(X_df, y_df)
             yield (X, y)
 
