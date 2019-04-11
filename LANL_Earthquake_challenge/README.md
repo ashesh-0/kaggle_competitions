@@ -22,4 +22,6 @@ Experiments:
     after 100, I see fluctuation. However, by looking at playground.tensorflow.org I saw that there are cases when after fluctuations, things stablize. therefore, I'm trying with even larger epoch.
 
 4. Try even larger epoch(400) (V10)
+    not much improvement.
 
+5. Using model which performs best on validation set. (V11)
