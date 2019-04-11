@@ -5,36 +5,51 @@ from data import Data
 
 
 class Model:
-    def __init__(self, ts_window: int, ts_size: int, learning_rate: float = 0.0005):
+    def __init__(
+            self,
+            ts_window: int,
+            ts_size: int,
+            train_fname: str,
+    ):
         self._ts_window = ts_window
         self._ts_size = ts_size
         self._hidden_lsize = 60
-        self._learning_rate = learning_rate
         self._model = None
-        self._data_cls = None
         self._model = None
         self._history = None
 
-    def get_model(self, feature_count):
+        self._data_cls = Data(self._ts_window, self._ts_size, train_fname)
+        self._X_val, self._y_val = self._data_cls.get_validation_X_y()
+
+    def get_model(self, feature_count, learning_rate: float):
         model = Sequential()
-        model.add(SimpleRNN(self._hidden_lsize, input_shape=(self._ts_window, feature_count)))
+        model.add(CuDNNGRU(self._hidden_lsize, input_shape=(self._ts_window, feature_count)))
         model.add(Dense(self._hidden_lsize // 2, activation='relu'))
         model.add(Dense(1))
-        model.compile(optimizer=adam(lr=self._learning_rate), loss="mae")
+        model.compile(optimizer=adam(lr=learning_rate), loss="mae")
         print(model.summary())
         return model
 
-    def fit(self, fname, epochs):
-        self._data_cls = Data(self._ts_window, self._ts_size, fname)
-        X_val, y_val = self._data_cls.get_validation_X_y()
-        feature_count = X_val.shape[2]
-        self._model = self.get_model(feature_count)
+    def _plot_acc_loss(self):
+        import matplotlib.pyplot as plt
+        # summarize history for loss
+        plt.plot(self._history.history['loss'])
+        plt.plot(self._history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        plt.show()
+
+    def fit(self, epochs: int, learning_rate: float):
+        feature_count = self._X_val.shape[2]
+        self._model = self.get_model(feature_count, learning_rate=learning_rate)
         steps_per_epoch = int(self._data_cls.training_size() / self._data_cls.batch_size())
         # Train
         self._history = self._model.fit_generator(
             self._data_cls.get_X_y_generator(),
             epochs=epochs,
-            validation_data=[X_val, y_val],
+            validation_data=[self._X_val, self._y_val],
             # callbacks=[ckpt],
             steps_per_epoch=steps_per_epoch,
             # workers=2,
@@ -42,14 +57,16 @@ class Model:
             verbose=2,
         )
 
+        self._plot_acc_loss()
+
     def predict(self, df):
         X = self._data_cls.get_test_X(df)
         return self._model.predict(X)
 
 
-# if __name__ == '__main__':
-#     ts_window = 50
-#     ts_size = 1000
-#     model = Model(ts_window, ts_size)
-#     epochs = 20
-#     model.fit('train.csv', epochs)
+if __name__ == '__main__':
+    ts_window = 50
+    ts_size = 1000
+    model = Model(ts_window, ts_size, 'train.csv')
+    epochs = 20
+    model.fit(epochs, 0.0005)

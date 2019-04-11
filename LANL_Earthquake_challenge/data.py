@@ -167,7 +167,6 @@ class FeatureExtraction:
         segment_size_row_count = self._segment_size // self._ts_size
 
         while True:
-            logging.info('Training X,y generator fast starting from beginning')
             prev_X_df = None
             prev_y_df = None
             for X_chunk_df, y_chunk_df in zip(self._train_X_dfs, self._train_y_dfs):
