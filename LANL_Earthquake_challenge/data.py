@@ -49,7 +49,7 @@ class FeatureExtraction:
         df = df[['time_to_failure']].copy()
         ts_count = df.shape[0] // self._ts_size
         if df.shape[0] != ts_count * self._ts_size:
-            logging.warn('For y, Trimming last {} entries'.format(df.shape[0] - ts_count * self._ts_size))
+            logging.warning('For y, Trimming last {} entries'.format(df.shape[0] - ts_count * self._ts_size))
             df = df.iloc[:ts_count * self._ts_size]
 
         df['ts'] = np.repeat(list(range(ts_count)), self._ts_size)
@@ -66,7 +66,7 @@ class FeatureExtraction:
         ts_count = df.shape[0] // self._ts_size
 
         if df.shape[0] != ts_count * self._ts_size:
-            logging.warn('For X, Trimming last {} entries'.format(df.shape[0] - ts_count * self._ts_size))
+            logging.warning('For X, Trimming last {} entries'.format(df.shape[0] - ts_count * self._ts_size))
             df = df.iloc[:ts_count * self._ts_size]
 
         df['ts'] = np.repeat(list(range(ts_count)), self._ts_size)
