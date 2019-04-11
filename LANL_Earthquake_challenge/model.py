@@ -1,6 +1,7 @@
 from keras.optimizers import adam
 from keras.models import Sequential
 from keras.layers import CuDNNGRU, Dense, SimpleRNN
+from keras.callbacks import ModelCheckpoint
 from data import Data
 
 
@@ -45,12 +46,22 @@ class Model:
         feature_count = self._X_val.shape[2]
         self._model = self.get_model(feature_count, learning_rate=learning_rate)
         steps_per_epoch = int(self._data_cls.training_size() / self._data_cls.batch_size())
+
+        ckpt = ModelCheckpoint(
+            'weights.h5',
+            save_best_only=True,
+            save_weights_only=True,
+            verbose=0,
+            monitor='val_loss',
+            mode='min',
+        )
+
         # Train
         self._history = self._model.fit_generator(
             self._data_cls.get_X_y_generator(),
             epochs=epochs,
             validation_data=[self._X_val, self._y_val],
-            # callbacks=[ckpt],
+            callbacks=[ckpt],
             steps_per_epoch=steps_per_epoch,
             # workers=2,
             # use_multiprocessing=True,
@@ -58,6 +69,8 @@ class Model:
         )
 
         self._plot_acc_loss()
+        # load the weights which were best for validation.
+        self._model.load_weights('weights.h5')
 
     def predict(self, df):
         X = self._data_cls.get_test_X(df)
