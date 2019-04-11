@@ -15,7 +15,11 @@ Experiments:
     With what features I've I'll go with 0.0001 as here training error seems to reduce the most and this is also stable.
     MAE hovers around 3
 
-2. Try longer epoch. (V8)
+2. Try larger epoch. (100) (V8)
     there is clear improvement. Whats more, the curve seems to be improving at the end of epoch signalling that I should try to increase it even more.
 
-3. Try even longer epochy (V9)
+3. Try even larger epoch (200) (V9)
+    after 100, I see fluctuation. However, by looking at playground.tensorflow.org I saw that there are cases when after fluctuations, things stablize. therefore, I'm trying with even larger epoch.
+
+4. Try even larger epoch(400) (V10)
+
