@@ -1,8 +1,10 @@
+import pickle
 from keras.optimizers import adam
 from keras.models import Sequential
 from keras.layers import CuDNNGRU, Dense, SimpleRNN
 from keras.callbacks import ModelCheckpoint
 from data import Data
+from keras import regularizers
 
 
 class Model:
@@ -11,6 +13,7 @@ class Model:
             ts_window: int,
             ts_size: int,
             train_fname: str,
+            data_pickle_file: str = None,
     ):
         self._ts_window = ts_window
         self._ts_size = ts_size
@@ -19,12 +22,23 @@ class Model:
         self._model = None
         self._history = None
 
-        self._data_cls = Data(self._ts_window, self._ts_size, train_fname)
-        self._X_val, self._y_val = self._data_cls.get_validation_X_y()
+        if data_pickle_file is not None:
+            print('[Model] loading from pickle file', data_pickle_file)
+            with open(data_pickle_file, 'rb') as f:
+                self._data_cls = pickle.load(f)
+        else:
+            self._data_cls = Data(self._ts_window, self._ts_size, train_fname)
+
+        print('[Model] Validation has shape', self._data_cls.val_X.shape)
 
     def get_model(self, feature_count, learning_rate: float):
         model = Sequential()
-        model.add(CuDNNGRU(self._hidden_lsize, input_shape=(self._ts_window, feature_count)))
+        model.add(
+            SimpleRNN(
+                self._hidden_lsize,
+                input_shape=(self._ts_window, feature_count),
+                kernel_regularizer=regularizers.l1(0.001),
+            ))
         model.add(Dense(self._hidden_lsize // 2, activation='relu'))
         model.add(Dense(1))
         model.compile(optimizer=adam(lr=learning_rate), loss="mae")
@@ -43,7 +57,7 @@ class Model:
         plt.show()
 
     def fit(self, epochs: int, learning_rate: float):
-        feature_count = self._X_val.shape[2]
+        feature_count = self._data_cls.val_X.shape[2]
         self._model = self.get_model(feature_count, learning_rate=learning_rate)
         steps_per_epoch = int(self._data_cls.training_size() / self._data_cls.batch_size())
 
@@ -60,7 +74,7 @@ class Model:
         self._history = self._model.fit_generator(
             self._data_cls.get_X_y_generator(),
             epochs=epochs,
-            validation_data=[self._X_val, self._y_val],
+            validation_data=[self._data_cls.val_X, self._data_cls.val_y],
             callbacks=[ckpt],
             steps_per_epoch=steps_per_epoch,
             # workers=2,

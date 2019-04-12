@@ -323,8 +323,15 @@ class Data:
             self._feature_extractor.learn_scale_and_save_train_df(self.raw_data_df)
             print('[Data] Scale learnt')
 
+        print('[Data] Fetching Validation data')
+        self.val_X, self.val_y = self.get_validation_X_y()
+        print('[Data] Validation data fetched')
+
     def get_window_X(self, X_df: pd.DataFrame) -> np.array:
         row_count = X_df.shape[0] - self._ts_window + 1
+
+        if row_count <= 0:
+            return None
 
         X = np.zeros((row_count, self._ts_window, X_df.shape[1]))
         for i in range(self._ts_window, X_df.shape[0] + 1):
@@ -347,6 +354,10 @@ class Data:
     def get_window_X_y(self, X_df, y_df) -> Tuple[np.array, np.array]:
         X = self.get_window_X(X_df)
         y = self.get_window_y(y_df)
+
+        if X is None:
+            return (None, None)
+
         return (X, y)
 
     def get_validation_X_y(self) -> Tuple[np.array, np.array]:
@@ -382,8 +393,8 @@ class Data:
 if __name__ == '__main__':
     ts_window = 100
     ts_size = 1000
-    d = Data(ts_window, ts_size)
-    gen = d.get_X_y_generator('train.csv', test_mode=True)
+    d = Data(ts_window, ts_size, 'train.csv')
+    gen = d.get_X_y_generator(test_mode=True)
     for X, y in gen:
         print('Shape of X', X.shape)
         print('Shape of y', y.shape)
