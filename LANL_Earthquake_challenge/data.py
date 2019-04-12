@@ -64,7 +64,7 @@ class FeatureExtraction:
             grp_size: int,
             grp_start_index: int,
             grp_end_index: int,
-    ) -> pd.core.groupby.generic.DataFrameGroupBy:
+    ) -> pd.core.groupby.DataFrameGroupBy:
         """
         Within one, ts_size segment, we want to compute features on say first 10% of the data, or on some
         contiguous segment. This function returns a group object which has exactly those entries.
@@ -83,7 +83,7 @@ class FeatureExtraction:
         return df.groupby(grp_col)
 
     @staticmethod
-    def compute_features_on_group(grp: pd.core.groupby.generic.DataFrameGroupBy, col_suffix: str):
+    def compute_features_on_group(grp: pd.core.groupby.DataFrameGroupBy, col_suffix: str):
         mean_df = grp.mean().to_frame('mean_' + col_suffix)
         std_df = grp.std().to_frame('std_' + col_suffix)
         quantile_df = grp.quantile([0.05, 0.5, 0.95]).unstack()
