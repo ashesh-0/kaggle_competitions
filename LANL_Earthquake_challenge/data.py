@@ -73,18 +73,22 @@ class FeatureExtraction:
             grp_col: column name which is to be used to group the dataframe.
             grp_size: how many entries are there in each group. It is assumed that it will be same for all groups.
             grp_start_index: within a group, the index from which data needs to be considered.
-            grp_end_index: within a group, the index till which data needs to be considered.
+            grp_end_index: within a group, the index till which (excluding it) data needs to be considered.
         """
         assert grp_start_index < df.shape[0] and grp_start_index >= 0
         assert grp_end_index < df.shape[0]
         idx = np.arange(0, df.shape[0])
-        df = df[(idx % grp_size >= grp_start_index) & (idx % grp_size <= grp_end_index)]
+        df = df[(idx % grp_size >= grp_start_index) & (idx % grp_size < grp_end_index)]
 
         return df.groupby(grp_col)
 
     @staticmethod
     def compute_features_on_group(grp: pd.core.groupby.DataFrameGroupBy, col_suffix: str):
         mean_df = grp.mean().to_frame('mean_' + col_suffix)
+
+        if mean_df.empty:
+            return mean_df
+
         std_df = grp.std().to_frame('std_' + col_suffix)
         quantile_df = grp.quantile([0.05, 0.5, 0.95]).unstack()
         quantile_df.columns = list(map(lambda x: 'Quantile-{}_{}'.format(x, col_suffix), quantile_df.columns))
@@ -126,8 +130,7 @@ class FeatureExtraction:
         f_50_75_df = FeatureExtraction.compute_features_on_group(grp['acoustic_data'], '50->75')
 
         # Compute features on next 25% of ts_size datapoints within each ts_size chunk
-        grp = FeatureExtraction.group_location_filter(df, 'ts', self._ts_size, 3 * self._ts_size // 4,
-                                                      self._ts_size - 1)
+        grp = FeatureExtraction.group_location_filter(df, 'ts', self._ts_size, 3 * self._ts_size // 4, self._ts_size)
         f_75_100_df = FeatureExtraction.compute_features_on_group(grp['acoustic_data'], '75->100')
 
         output_df = pd.concat([f_0_100_df, f_0_25_df, f_25_50_df, f_50_75_df, f_75_100_df], axis=1)

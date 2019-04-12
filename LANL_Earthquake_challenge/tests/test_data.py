@@ -1,6 +1,7 @@
 from unittest.mock import patch
 import pandas as pd
 from data import FeatureExtraction, Data
+import numpy as np
 
 test_df = pd.DataFrame(
     [
@@ -43,10 +44,26 @@ class TestFeatureExtraction:
         expected_y.index = list(range(test_df.shape[0] // ts_size))
         assert y_df.equals(expected_y)
 
-        assert X_df['mean'].iloc[0] == test_df['acoustic_data'].iloc[:ts_size].mean()
-        assert X_df['mean'].iloc[1] == test_df['acoustic_data'].iloc[ts_size:2 * ts_size].mean()
-        assert X_df['mean'].iloc[2] == test_df['acoustic_data'].iloc[2 * ts_size:3 * ts_size].mean()
-        assert X_df['mean'].iloc[3] == test_df['acoustic_data'].iloc[3 * ts_size:4 * ts_size].mean()
+        assert X_df['mean_0->100'].iloc[0] == test_df['acoustic_data'].iloc[:ts_size].mean()
+        assert X_df['mean_0->100'].iloc[1] == test_df['acoustic_data'].iloc[ts_size:2 * ts_size].mean()
+        assert X_df['mean_0->100'].iloc[2] == test_df['acoustic_data'].iloc[2 * ts_size:3 * ts_size].mean()
+        assert X_df['mean_0->100'].iloc[3] == test_df['acoustic_data'].iloc[3 * ts_size:4 * ts_size].mean()
+
+    def test_get_X_should_compute_using_subset_data(self):
+        """
+        Within one timestamp chunk, this test ensures that features are computing using correct data subsets.
+        """
+        ts_size = 4
+        validation_fraction = 0
+        ex = FeatureExtraction(ts_size, validation_fraction)
+        X_df = ex.get_X(test_df)
+        for idx, start_index in enumerate(range(0, test_df.shape[0], ts_size)):
+            df = test_df.iloc[start_index:start_index + ts_size]['acoustic_data']
+            assert X_df['mean_0->100'].iloc[idx] == df.mean()
+            assert X_df['mean_0->25'].iloc[idx] == df.iloc[:ts_size // 4].mean()
+            assert X_df['mean_25->50'].iloc[idx] == df.iloc[ts_size // 4:2 * ts_size // 4].mean()
+            assert X_df['mean_50->75'].iloc[idx] == df.iloc[2 * ts_size // 4:3 * ts_size // 4].mean()
+            assert X_df['mean_75->100'].iloc[idx] == df.iloc[3 * ts_size // 4:4 * ts_size // 4].mean()
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
     def test_get_X_y_generator(self, mock_read):
@@ -116,7 +133,7 @@ class TestData:
         for i in range(X.shape[0]):
             assert y_df.values[i + ts_window - 1] == y[i]
             for j in range(ts_window):
-                assert all(X[i, j, :] == X_df.values[i + j, :])
+                assert all(np.nan_to_num(X[i, j, :]) == np.nan_to_num(X_df.values[i + j, :]))
 
     @patch('data.pd.read_csv', side_effect=mock_read_csv)
     def test_get_X_y_generator(self, mock_read):
@@ -152,10 +169,7 @@ class TestData:
         gen = dt.get_X_y_generator(debug_mode=debug_mode)
         last_index = 0
         for X, y in gen:
-            print('hello')
-            print(X[0, :, 0])
-            print(X_whole[last_index, :, 0])
-            assert (X == X_whole[last_index:last_index + X.shape[0]]).all()
+            assert (np.nan_to_num(X) == np.nan_to_num(X_whole[last_index:last_index + X.shape[0]])).all()
             assert (y == y_whole[last_index:last_index + y.shape[0]]).all()
             last_index += X.shape[0]
 
@@ -201,7 +215,7 @@ class TestData:
         first_index = 0
 
         for X, y in gen:
-            assert (X == X_whole[first_index:first_index + X.shape[0]]).all()
+            assert (np.nan_to_num(X) == np.nan_to_num(X_whole[first_index:first_index + X.shape[0]])).all()
             assert (y == y_whole[first_index:first_index + y.shape[0]]).all()
             first_index += X.shape[0]
 
@@ -210,5 +224,5 @@ class TestData:
 
         val_X, val_y = dt.get_validation_X_y()
         assert val_X.shape[0] == 4
-        assert (val_X == X_whole[2:]).all()
+        assert (np.nan_to_num(val_X) == np.nan_to_num(X_whole[2:])).all()
         assert (val_y == y_whole[2:]).all()
