@@ -30,4 +30,7 @@ Experiments:
 6. (V12) Increasing both ts_window from 50 to 100 and ts_size from 1000 to 1500. this makes sure that we are using all of 150K data points to predict. Here, performance on training data improved a lot, thereby indicating improvement. However, I don't see improvement in validation set. Also I see that performance saturates within epoch 75. To get a more general idea, in next experiment, I'm varying ts_window and ts_size systematically.
 
 7. (V13) Here, I'm varying (ts_window, ts_size) =>  [(50, 3000), (100, 1500), (150, 1000)]
+    (150,1000) is the best of the three. I saw that the improvement was still going on and so will try the longer epoch. This is by far the best model.
+
+8. (ts_window, ts_size) => (V14) (150, 1000) with epoch being 200.
 

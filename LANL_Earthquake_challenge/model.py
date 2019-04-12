@@ -51,7 +51,7 @@ class Model:
             'weights.h5',
             save_best_only=True,
             save_weights_only=True,
-            verbose=0,
+            verbose=1,
             monitor='val_loss',
             mode='min',
         )
