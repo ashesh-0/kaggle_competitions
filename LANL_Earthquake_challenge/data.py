@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
@@ -57,6 +57,43 @@ class FeatureExtraction:
         output_df.index.name = 'ts'
         return output_df['time_to_failure']
 
+    @staticmethod
+    def group_location_filter(
+            df: pd.DataFrame,
+            grp_col: Union[str, int],
+            grp_size: int,
+            grp_start_index: int,
+            grp_end_index: int,
+    ) -> pd.core.groupby.generic.DataFrameGroupBy:
+        """
+        Within one, ts_size segment, we want to compute features on say first 10% of the data, or on some
+        contiguous segment. This function returns a group object which has exactly those entries.
+
+        Args:
+            grp_col: column name which is to be used to group the dataframe.
+            grp_size: how many entries are there in each group. It is assumed that it will be same for all groups.
+            grp_start_index: within a group, the index from which data needs to be considered.
+            grp_end_index: within a group, the index till which data needs to be considered.
+        """
+        assert grp_start_index < df.shape[0] and grp_start_index >= 0
+        assert grp_end_index < df.shape[0]
+        idx = np.arange(0, df.shape[0])
+        df = df[(idx % grp_size >= grp_start_index) & (idx % grp_size <= grp_end_index)]
+
+        return df.groupby(grp_col)
+
+    @staticmethod
+    def compute_features_on_group(grp: pd.core.groupby.generic.DataFrameGroupBy, col_suffix: str):
+        mean_df = grp.mean().to_frame('mean_' + col_suffix)
+        std_df = grp.std().to_frame('std_' + col_suffix)
+        quantile_df = grp.quantile([0.05, 0.5, 0.95]).unstack()
+        quantile_df.columns = list(map(lambda x: 'Quantile-{}_{}'.format(x, col_suffix), quantile_df.columns))
+        max_df = grp.max().to_frame('max_' + col_suffix)
+        min_df = grp.min().to_frame('min_' + col_suffix)
+
+        output_df = pd.concat([mean_df, std_df, quantile_df, max_df, min_df], axis=1)
+        return output_df
+
     def get_X(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Index is #example_id,#timestamp_id. Columns are features.
@@ -71,14 +108,29 @@ class FeatureExtraction:
 
         df['ts'] = np.repeat(list(range(ts_count)), self._ts_size)
 
-        grp = df.groupby('ts')['acoustic_data']
-        mean_df = grp.mean().to_frame('mean')
-        std_df = grp.std().to_frame('std')
-        quantile_df = grp.quantile([0.05, 0.5, 0.95]).unstack()
-        quantile_df.columns = list(map(lambda x: 'Quantile-{}'.format(x), quantile_df.columns))
-        max_df = grp.max().to_frame('max')
-        min_df = grp.min().to_frame('min')
-        output_df = pd.concat([mean_df, std_df, quantile_df, max_df, min_df], axis=1)
+        # Compute features on all datapoints within each ts_size chunk
+        grp = df.groupby('ts')
+        f_0_100_df = FeatureExtraction.compute_features_on_group(grp['acoustic_data'], '0->100')
+
+        # Compute features on first 25% of ts_size datapoints within each ts_size chunk
+        grp = FeatureExtraction.group_location_filter(df, 'ts', self._ts_size, 0, self._ts_size // 4)
+        f_0_25_df = FeatureExtraction.compute_features_on_group(grp['acoustic_data'], '0->25')
+
+        # Compute features on next 25% of ts_size datapoints within each ts_size chunk
+        grp = FeatureExtraction.group_location_filter(df, 'ts', self._ts_size, self._ts_size // 4, self._ts_size // 2)
+        f_25_50_df = FeatureExtraction.compute_features_on_group(grp['acoustic_data'], '25->50')
+
+        # Compute features on next 25% of ts_size datapoints within each ts_size chunk
+        grp = FeatureExtraction.group_location_filter(df, 'ts', self._ts_size, self._ts_size // 2,
+                                                      3 * self._ts_size // 4)
+        f_50_75_df = FeatureExtraction.compute_features_on_group(grp['acoustic_data'], '50->75')
+
+        # Compute features on next 25% of ts_size datapoints within each ts_size chunk
+        grp = FeatureExtraction.group_location_filter(df, 'ts', self._ts_size, 3 * self._ts_size // 4,
+                                                      self._ts_size - 1)
+        f_75_100_df = FeatureExtraction.compute_features_on_group(grp['acoustic_data'], '75->100')
+
+        output_df = pd.concat([f_0_100_df, f_0_25_df, f_25_50_df, f_50_75_df, f_75_100_df], axis=1)
         output_df.columns.name = 'features'
 
         if self._scale_df is not None:

@@ -32,5 +32,5 @@ Experiments:
 7. (V13) Here, I'm varying (ts_window, ts_size) =>  [(50, 3000), (100, 1500), (150, 1000)]
     (150,1000) is the best of the three. I saw that the improvement was still going on and so will try the longer epoch. This is by far the best model.
 
-8. (ts_window, ts_size) => (V14) (150, 1000) with epoch being 200.
+8. (V14) (ts_window, ts_size) => (150, 1000) with epoch being 200.
 
