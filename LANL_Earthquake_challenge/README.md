@@ -34,3 +34,6 @@ Experiments:
 
 8. (V14) (ts_window, ts_size) => (150, 1000) with epoch being 200.
 
+9. (V18) Here, we increased the number of features .however, model performance detoriated. apparently, it is not able to learn. That being the case, we need to do run it for longer time. Here I've applied l1_regularization to see if limiting
+the weights improves the performance. [0, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+

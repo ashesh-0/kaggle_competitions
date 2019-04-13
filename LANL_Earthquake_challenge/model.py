@@ -34,7 +34,7 @@ class Model:
     def get_model(self, feature_count, learning_rate: float, l1_regularizer_wt: float):
         model = Sequential()
         model.add(
-            SimpleRNN(
+            CuDNNGRU(
                 self._hidden_lsize,
                 input_shape=(self._ts_window, feature_count),
                 kernel_regularizer=regularizers.l1(l1_regularizer_wt),
