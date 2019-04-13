@@ -58,7 +58,7 @@ class Model:
 
     def fit(self, epochs: int, learning_rate: float, l1_regularizer_wt: float):
         feature_count = self._data_cls.val_X.shape[2]
-        self._model = self.get_model(feature_count, learning_rate=learning_rate, l1_regularizer_wt)
+        self._model = self.get_model(feature_count, learning_rate, l1_regularizer_wt)
         steps_per_epoch = int(self._data_cls.training_size() / self._data_cls.batch_size())
 
         ckpt = ModelCheckpoint(
@@ -96,4 +96,4 @@ if __name__ == '__main__':
     ts_size = 1000
     model = Model(ts_window, ts_size, 'train.csv')
     epochs = 20
-    model.fit(epochs, 0.0005)
+    model.fit(epochs, 0.0005, 0.001)
