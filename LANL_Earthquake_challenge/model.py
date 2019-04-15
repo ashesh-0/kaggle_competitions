@@ -1,7 +1,7 @@
 import pickle
 from keras.optimizers import adam
 from keras.models import Sequential
-from keras.layers import CuDNNGRU, Dense, SimpleRNN
+from keras.layers import CuDNNGRU, Dense, SimpleRNN, Dropout, BatchNormalization
 from keras.callbacks import ModelCheckpoint
 from data import Data
 from keras import regularizers
@@ -31,7 +31,14 @@ class Model:
 
         print('[Model] Validation has shape', self._data_cls.val_X.shape)
 
-    def get_model(self, feature_count, learning_rate: float, l1_regularizer_wt: float):
+    def get_model(
+            self,
+            feature_count,
+            learning_rate: float,
+            l1_regularizer_wt: float,
+            dropout_fraction: float,
+            batch_normalization: bool,
+    ):
         model = Sequential()
         model.add(
             CuDNNGRU(
@@ -39,7 +46,15 @@ class Model:
                 input_shape=(self._ts_window, feature_count),
                 kernel_regularizer=regularizers.l1(l1_regularizer_wt),
             ))
+        if batch_normalization:
+            model.add(BatchNormalization())
+
         model.add(Dense(self._hidden_lsize // 2, activation='relu'))
+
+        if batch_normalization:
+            model.add(BatchNormalization())
+
+        model.add(Dropout(dropout_fraction))
         model.add(Dense(1, activation=None))
         model.compile(optimizer=adam(lr=learning_rate), loss="mae")
         print(model.summary())
@@ -56,9 +71,11 @@ class Model:
         plt.legend(['train', 'test'], loc='upper left')
         plt.show()
 
-    def fit(self, epochs: int, learning_rate: float, l1_regularizer_wt: float):
+    def fit(self, epochs: int, learning_rate: float, l1_regularizer_wt: float, dropout_fraction: float,
+            batch_normalization: bool):
         feature_count = self._data_cls.val_X.shape[2]
-        self._model = self.get_model(feature_count, learning_rate, l1_regularizer_wt)
+        self._model = self.get_model(feature_count, learning_rate, l1_regularizer_wt, dropout_fraction,
+                                     batch_normalization)
         steps_per_epoch = int(self._data_cls.training_size() / self._data_cls.batch_size())
 
         ckpt = ModelCheckpoint(
@@ -95,5 +112,5 @@ if __name__ == '__main__':
     ts_window = 50
     ts_size = 1000
     model = Model(ts_window, ts_size, 'train.csv')
-    epochs = 20
-    model.fit(epochs, 0.0005, 0.001)
+    epochs = 100
+    model.fit(epochs, 0.0005, 0.001, 0.2, True)

@@ -37,3 +37,19 @@ Experiments:
 9. (V18) Here, we increased the number of features .however, model performance detoriated. apparently, it is not able to learn. That being the case, we need to do run it for longer time. Here I've applied l1_regularization to see if limiting
 the weights improves the performance. [0, 0.00001, 0.0001, 0.001, 0.01, 0.1]
 
+I also saw that 0.00001 regularization was better than 0.0001 as the validation error has come to 2.4. With 9th experiment, I'm hoping to find best performance with no regularization. I'll try dropout as well.
+
+10. (V19) l1 regularization is not helping. with it, training as well as validation performance detoriates.
+11. (V20) With 150 epoch I'm trying to learn on 36 features.
+12. (V21) With dropout, the performance on validation set improved to 0.24 from 0.3. This too happened when epoch was set to 150 in v19. In v21, epoch was set to 75.
+13. (V22) Repeat 12 with more epoch. This is by far the best model.
+
+14. (V23) However, I see that with dropout 0.2 is better than 0.1. So I'm increasing the dropout to [0.2, 0.3, 0.4]
+    0.2 -> At 50 epoch, (train,val) => (1.6, 2.6), 100 epoch, (train, val) => (1.4, 2.4)
+        -> train very stable.
+    0.3 -> At 50 epoch (train,val) => (1.7, 2.7), 100 epoch (train,val)=> (1.4, 2.4)
+    0.4 -> At 50 epoch, (train,val) => (1.6419,2.5), 100 epoch (train,val) => (1.4, 2.4)
+
+    I don't see any difference. This means that there is way too much redundency in the network. Keeping dropout at
+    0.2, I'll next try to reduce the number of nodes in the network.
+
