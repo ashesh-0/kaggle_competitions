@@ -5,6 +5,7 @@ from keras.layers import CuDNNGRU, Dense, SimpleRNN, Dropout, BatchNormalization
 from keras.callbacks import ModelCheckpoint
 from data import Data
 from keras import regularizers
+from typing import List
 
 
 class Model:
@@ -32,7 +33,7 @@ class Model:
 
     def get_model(
             self,
-            hidden_lsize: int,
+            hidden_lsizes: List[int],
             feature_count: int,
             learning_rate: float,
             l1_regularizer_wt: float,
@@ -42,19 +43,21 @@ class Model:
         model = Sequential()
         model.add(
             CuDNNGRU(
-                hidden_lsize,
+                hidden_lsizes[0],
                 input_shape=(self._ts_window, feature_count),
                 kernel_regularizer=regularizers.l1(l1_regularizer_wt),
             ))
         if batch_normalization:
             model.add(BatchNormalization())
 
-        model.add(Dense(hidden_lsize // 2, activation='relu'))
+        for hidden_lsize in hidden_lsizes[1:]:
+            model.add(Dense(hidden_lsize // 2, activation='relu'))
 
-        if batch_normalization:
-            model.add(BatchNormalization())
+            if batch_normalization:
+                model.add(BatchNormalization())
 
-        model.add(Dropout(dropout_fraction))
+            model.add(Dropout(dropout_fraction))
+
         model.add(Dense(1, activation=None))
         model.compile(optimizer=adam(lr=learning_rate), loss="mae")
         print(model.summary())
@@ -71,10 +74,10 @@ class Model:
         plt.legend(['train', 'test'], loc='upper left')
         plt.show()
 
-    def fit(self, hidden_lsize, epochs: int, learning_rate: float, l1_regularizer_wt: float, dropout_fraction: float,
-            batch_normalization: bool):
+    def fit(self, hidden_lsizes: List[int], epochs: int, learning_rate: float, l1_regularizer_wt: float,
+            dropout_fraction: float, batch_normalization: bool):
         feature_count = self._data_cls.val_X.shape[2]
-        self._model = self.get_model(hidden_lsize, feature_count, learning_rate, l1_regularizer_wt, dropout_fraction,
+        self._model = self.get_model(hidden_lsizes, feature_count, learning_rate, l1_regularizer_wt, dropout_fraction,
                                      batch_normalization)
         steps_per_epoch = int(self._data_cls.training_size() / self._data_cls.batch_size())
 
@@ -113,5 +116,5 @@ if __name__ == '__main__':
     ts_size = 1000
     model = Model(ts_window, ts_size, 'train.csv')
     epochs = 100
-    hidden_lsize = 64
-    model.fit(hidden_lsize, epochs, 0.0005, 0.001, 0.2, True)
+    hidden_lsizes = [64, 32, 32]
+    model.fit(hidden_lsizes, epochs, 0.0005, 0.001, 0.2, True)

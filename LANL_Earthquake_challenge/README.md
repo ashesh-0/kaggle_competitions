@@ -60,7 +60,7 @@ I also saw that 0.00001 regularization was better than 0.0001 as the validation 
     60 -> At 50 epoch, (train, val) => (1.5, 2.6). At 100 epoch, (train,val) => (1.4, 2.4)
     I don't see much difference.
 
-16. (V25) Here, I kept the num_nodes to be 64. Dropout of 0.5 was used.Trained till 250 seconds. Very stable performance on validation set. However, performance numbers are high (train, val) => (3, 3.2)
+16. (V25) Here, I kept the num_nodes to be 64. Dropout of 0.5 was used. Used batch normalization. Trained till 250 seconds. Very stable performance on validation set. However, performance numbers are high (train, val) => (3, 3.2)
 
 17. (V26) I'll increase one more layer in the network. Idea is to increase the complexity.
 
