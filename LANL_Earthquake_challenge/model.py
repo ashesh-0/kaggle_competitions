@@ -17,7 +17,6 @@ class Model:
     ):
         self._ts_window = ts_window
         self._ts_size = ts_size
-        self._hidden_lsize = 60
         self._model = None
         self._model = None
         self._history = None
@@ -33,7 +32,8 @@ class Model:
 
     def get_model(
             self,
-            feature_count,
+            hidden_lsize: int,
+            feature_count: int,
             learning_rate: float,
             l1_regularizer_wt: float,
             dropout_fraction: float,
@@ -42,14 +42,14 @@ class Model:
         model = Sequential()
         model.add(
             CuDNNGRU(
-                self._hidden_lsize,
+                hidden_lsize,
                 input_shape=(self._ts_window, feature_count),
                 kernel_regularizer=regularizers.l1(l1_regularizer_wt),
             ))
         if batch_normalization:
             model.add(BatchNormalization())
 
-        model.add(Dense(self._hidden_lsize // 2, activation='relu'))
+        model.add(Dense(hidden_lsize // 2, activation='relu'))
 
         if batch_normalization:
             model.add(BatchNormalization())
@@ -71,10 +71,10 @@ class Model:
         plt.legend(['train', 'test'], loc='upper left')
         plt.show()
 
-    def fit(self, epochs: int, learning_rate: float, l1_regularizer_wt: float, dropout_fraction: float,
+    def fit(self, hidden_lsize, epochs: int, learning_rate: float, l1_regularizer_wt: float, dropout_fraction: float,
             batch_normalization: bool):
         feature_count = self._data_cls.val_X.shape[2]
-        self._model = self.get_model(feature_count, learning_rate, l1_regularizer_wt, dropout_fraction,
+        self._model = self.get_model(hidden_lsize, feature_count, learning_rate, l1_regularizer_wt, dropout_fraction,
                                      batch_normalization)
         steps_per_epoch = int(self._data_cls.training_size() / self._data_cls.batch_size())
 
@@ -113,4 +113,5 @@ if __name__ == '__main__':
     ts_size = 1000
     model = Model(ts_window, ts_size, 'train.csv')
     epochs = 100
-    model.fit(epochs, 0.0005, 0.001, 0.2, True)
+    hidden_lsize = 64
+    model.fit(hidden_lsize, epochs, 0.0005, 0.001, 0.2, True)

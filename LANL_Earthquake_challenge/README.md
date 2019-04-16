@@ -53,3 +53,14 @@ I also saw that 0.00001 regularization was better than 0.0001 as the validation 
     I don't see any difference. This means that there is way too much redundency in the network. Keeping dropout at
     0.2, I'll next try to reduce the number of nodes in the network.
 
+
+15. (V24) Here we vary the number of hidden nodes of Rnn and dense layers. RNN has num_nodes output dimension. Dense layer has num_nodes/2 size. [20, 40, 60]
+    20-> At 50 epoch, (train,val) => (1.9, 2.7). At 100 epoch, (train, val) => (1.7, 2.5)
+    40 -> At 50 epoch, (train, val)=> (1.7, 2.6). At 100 epoch, (train, val) => (1.5, 2.5)
+    60 -> At 50 epoch, (train, val) => (1.5, 2.6). At 100 epoch, (train,val) => (1.4, 2.4)
+    I don't see much difference.
+
+16. (V25) Here, I kept the num_nodes to be 64. Dropout of 0.5 was used.Trained till 250 seconds. Very stable performance on validation set. However, performance numbers are high (train, val) => (3, 3.2)
+
+17. (V26) I'll increase one more layer in the network. Idea is to increase the complexity.
+
