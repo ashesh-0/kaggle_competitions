@@ -66,7 +66,8 @@ I also saw that 0.00001 regularization was better than 0.0001 as the validation 
 18. (V28) Repeat (V27) (0.3 dropout) with larger epoch (300).
 19. (V30), (V29) Was trying different network architectures. [RNN(40), Dense(20),Dense(20), Dense(10)]. deep architectures don't seem to converge. I'll try batch normalization
 20. With batch normalization, performance is extremely stable.However, training loss does not come down below 2.9. So either there is some issue in deep architectures (bottleneck layer is too small) or the learning rate is too low.
-21. I'm now trying to see with 10x learning rate (0.01) whether I'm able to get better train performance.
-31. (V31) Network is [RNN(64),Dense(80)]. This should get better train performance and hopefully better val performance.
-Dropout is 0.5. Normalization is disabled.
+21. I'm now trying to see with 10x learning rate (0.01) whether I'm able to get better train performance. Better performance is not observed.
+22. (V31) Network is [RNN(64),Dense(40)]. This should get better train performance and hopefully better val performance. It has better performance. Validation performance reaches 2.41. PL score is 1.64. Dropout is 0.5. Normalization is disabled.
+23. (V32) Network is [RNN(64),Dense(64)]. Validation performance reaches 2.41. PL score is 1.62. Epoch  250. Dropout is 0.3. Saturation reached around 100 epoch. It did not improve after that.
+24. (V34) After fixing a bug which did not effect performance but underfed the number of nodes in dense layer. I'm running the network Network is [RNN(64),Dense(128)].
 
