@@ -62,5 +62,11 @@ I also saw that 0.00001 regularization was better than 0.0001 as the validation 
 
 16. (V25) Here, I kept the num_nodes to be 64. Dropout of 0.5 was used. Used batch normalization. Trained till 250 seconds. Very stable performance on validation set. However, performance numbers are high (train, val) => (3, 3.2)
 
-17. (V26) I'll increase one more layer in the network. Idea is to increase the complexity.
+17. (V26),(V27) I'll increase one more layer in the network. Idea is to increase the complexity. Dropout of 0.5 was too high. 0.3 looked better. However, results were still improving in 0.3 case.
+18. (V28) Repeat (V27) (0.3 dropout) with larger epoch (300).
+19. (V30), (V29) Was trying different network architectures. [RNN(40), Dense(20),Dense(20), Dense(10)]. deep architectures don't seem to converge. I'll try batch normalization
+20. With batch normalization, performance is extremely stable.However, training loss does not come down below 2.9. So either there is some issue in deep architectures (bottleneck layer is too small) or the learning rate is too low.
+21. I'm now trying to see with 10x learning rate (0.01) whether I'm able to get better train performance.
+31. (V31) Network is [RNN(64),Dense(80)]. This should get better train performance and hopefully better val performance.
+Dropout is 0.5. Normalization is disabled.
 

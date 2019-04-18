@@ -51,7 +51,7 @@ class Model:
             model.add(BatchNormalization())
 
         for hidden_lsize in hidden_lsizes[1:]:
-            model.add(Dense(hidden_lsize // 2, activation='relu'))
+            model.add(Dense(hidden_lsize, activation='relu'))
 
             if batch_normalization:
                 model.add(BatchNormalization())
