@@ -47,7 +47,6 @@ class Model:
                 hidden_lsizes[0],
                 input_shape=(self._ts_window, feature_count),
                 kernel_regularizer=regularizers.l1(l1_regularizer_wt),
-                activation='relu'
             ))
         if batch_normalization:
             model.add(BatchNormalization())
