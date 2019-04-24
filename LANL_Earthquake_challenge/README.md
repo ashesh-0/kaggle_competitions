@@ -77,3 +77,5 @@ I also saw that 0.00001 regularization was better than 0.0001 as the validation 
 
 27. I've also added support for TensorBoard. With it, one can see the gradients. I see that recurrent kernel gradients are too low for GRU. No node has gradient more than this. 0.00004. I'm trying LSTM to see how its recurrent gradients look like. kernel gradient has its max at around 0.01. Dense layer also has decent gradients in the range of 0.01.
 
+28. RNN layer did not had an activation :(. Added it and made the commit to run 150 epoch.
+

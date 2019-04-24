@@ -77,7 +77,7 @@ class Model:
         plt.show()
 
     def fit(self, hidden_lsizes: List[int], epochs: int, learning_rate: float, l1_regularizer_wt: float,
-            dropout_fraction: float, batch_normalization: bool, log_dir: str):
+            dropout_fraction: float, batch_normalization: bool, log_dir: str=None,):
         feature_count = self._data_cls.val_X.shape[2]
         self._model = self.get_model(hidden_lsizes, feature_count, learning_rate, l1_regularizer_wt, dropout_fraction,
                                      batch_normalization)
@@ -92,14 +92,18 @@ class Model:
             mode='min',
         )
 
-        tboard = TensorBoard(log_dir, histogram_freq=1, write_grads=True)
+
+        callbacks=[ckpt]
+        if log_dir is not None:
+            tboard = TensorBoard(log_dir, histogram_freq=1, write_grads=True)
+            callbacks.append(tboard)
 
         # Train
         self._history = self._model.fit_generator(
             self._data_cls.get_X_y_generator(),
             epochs=epochs,
             validation_data=[self._data_cls.val_X, self._data_cls.val_y],
-            callbacks=[ckpt, tboard],
+            callbacks=callbacks,
             steps_per_epoch=steps_per_epoch,
             # workers=2,
             # use_multiprocessing=True,
