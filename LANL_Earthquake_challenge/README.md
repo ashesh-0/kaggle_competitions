@@ -69,5 +69,11 @@ I also saw that 0.00001 regularization was better than 0.0001 as the validation 
 21. I'm now trying to see with 10x learning rate (0.01) whether I'm able to get better train performance. Better performance is not observed.
 22. (V31) Network is [RNN(64),Dense(40)]. This should get better train performance and hopefully better val performance. It has better performance. Validation performance reaches 2.41. PL score is 1.64. Dropout is 0.5. Normalization is disabled.
 23. (V32) Network is [RNN(64),Dense(64)]. Validation performance reaches 2.41. PL score is 1.62. Epoch  250. Dropout is 0.3. Saturation reached around 100 epoch. It did not improve after that.
-24. (V34) After fixing a bug which did not effect performance but underfed the number of nodes in dense layer. I'm running the network Network is [RNN(64),Dense(128)].
+24. (V34) After fixing a bug which did not effect performance but underfed the number of nodes in dense layer. I'm running the network Network is [RNN(64),Dense(128)]
+
+25. With LSTM, I'm getting better train accuracy. However, the validation score has degraded.
+
+26. (V37) Here, I've added code to see prediction plot. Using the best model to run for 50 epoch and trying to find what prediction plot looks like.
+
+27. I've also added support for TensorBoard. With it, one can see the gradients.
 

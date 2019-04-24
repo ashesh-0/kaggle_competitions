@@ -1,8 +1,9 @@
+import pandas as pd
 import pickle
 from keras.optimizers import adam
 from keras.models import Sequential
 from keras.layers import CuDNNGRU, Dense, SimpleRNN, Dropout, BatchNormalization
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint, TensorBoard
 from data import Data
 from keras import regularizers
 from typing import List
@@ -75,7 +76,7 @@ class Model:
         plt.show()
 
     def fit(self, hidden_lsizes: List[int], epochs: int, learning_rate: float, l1_regularizer_wt: float,
-            dropout_fraction: float, batch_normalization: bool):
+            dropout_fraction: float, batch_normalization: bool, log_dir: str):
         feature_count = self._data_cls.val_X.shape[2]
         self._model = self.get_model(hidden_lsizes, feature_count, learning_rate, l1_regularizer_wt, dropout_fraction,
                                      batch_normalization)
@@ -90,21 +91,29 @@ class Model:
             mode='min',
         )
 
+        tboard = TensorBoard(log_dir, histogram_freq=1, write_grads=True)
+
         # Train
         self._history = self._model.fit_generator(
             self._data_cls.get_X_y_generator(),
             epochs=epochs,
             validation_data=[self._data_cls.val_X, self._data_cls.val_y],
-            callbacks=[ckpt],
+            callbacks=[ckpt, tboard],
             steps_per_epoch=steps_per_epoch,
             # workers=2,
             # use_multiprocessing=True,
             verbose=2,
         )
 
-        self._plot_acc_loss()
         # load the weights which were best for validation.
         self._model.load_weights('weights.h5')
+        self._plot_acc_loss()
+
+    def plot_prediction(self):
+        prediction = self._model.predict(self._data_cls.val_X).reshape(-1, )
+        actual = self._data_cls.val_y
+        title = 'Plot of prediction on validation set'
+        pd.DataFrame(list(zip(actual, prediction)), columns=['actual', 'prediction']).plot(title=title)
 
     def predict(self, df):
         X = self._data_cls.get_test_X(df)
@@ -115,6 +124,7 @@ if __name__ == '__main__':
     ts_window = 50
     ts_size = 1000
     model = Model(ts_window, ts_size, 'train.csv')
-    epochs = 100
+    epochs = 10
     hidden_lsizes = [64, 32, 32]
-    model.fit(hidden_lsizes, epochs, 0.0005, 0.001, 0.2, True)
+    log_dir = '/home/ashesh/Documents/initiatives/kaggle_competitions/LANL_Earthquake_challenge/log'
+    model.fit(hidden_lsizes, epochs, 0.00001, 0.001, 0.2, True, log_dir)
