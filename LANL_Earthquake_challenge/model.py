@@ -77,7 +77,7 @@ class Model:
         plt.show()
 
     def fit(self, hidden_lsizes: List[int], epochs: int, learning_rate: float, l1_regularizer_wt: float,
-            dropout_fraction: float, batch_normalization: bool, log_dir: str=None,):
+            dropout_fraction: float, batch_normalization: bool, tensorboard_log_dir: str=None,):
         feature_count = self._data_cls.val_X.shape[2]
         self._model = self.get_model(hidden_lsizes, feature_count, learning_rate, l1_regularizer_wt, dropout_fraction,
                                      batch_normalization)
@@ -94,8 +94,8 @@ class Model:
 
 
         callbacks=[ckpt]
-        if log_dir is not None:
-            tboard = TensorBoard(log_dir, histogram_freq=1, write_grads=True)
+        if tensorboard_log_dir is not None:
+            tboard = TensorBoard(tensorboard_log_dir, histogram_freq=1, write_grads=True)
             callbacks.append(tboard)
 
         # Train
