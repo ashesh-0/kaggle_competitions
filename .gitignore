@@ -5,3 +5,6 @@
 *.pyc
 *.csv
 *.pdf
+log/
+*.pkl
+*.h5
