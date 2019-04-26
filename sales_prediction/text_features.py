@@ -1,4 +1,3 @@
-import numpy as np
 from scipy.sparse import hstack
 from typing import List
 from sklearn.feature_extraction.text import CountVectorizer
