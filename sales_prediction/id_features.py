@@ -28,6 +28,12 @@ class IdFeatures:
         self._item_id_old_to_new = self._fit('item_id')
         self._shop_id_old_to_new = self._fit('shop_id')
 
+    def transform_item_id(self, item_id):
+        return self._item_id_old_to_new[item_id]
+
+    def transform_shop_id(self, shop_id):
+        return self._shop_id_old_to_new[shop_id]
+
     def get_features(self, item_id, shop_id):
         return np.array([[self._item_id_old_to_new[item_id], self._shop_id_old_to_new[shop_id]]])
 
