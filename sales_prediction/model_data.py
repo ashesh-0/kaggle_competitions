@@ -1,5 +1,5 @@
 import pandas as pd
-from numeric_features import get_y, get_numeric_X_df
+from numeric_features import get_y, get_numeric_X_df, date_preprocessing
 from id_features import IdFeatures
 from text_features import TextFeatures
 
@@ -37,18 +37,19 @@ def get_X(sales_df, items_df, category_en, shop_name_en):
     print('Text features added')
 
     # Adding id features
-    idf = IdFeatures(sales_df)
+    idf = IdFeatures(sales_df, items_df)
     X_df['item_id'] = X_df['item_id'].apply(idf.transform_item_id)
     X_df['shop_id'] = X_df['shop_id'].apply(idf.transform_shop_id)
     print('Id features added')
     return X_df
 
 
-def get_X_test(sales_train_df, sales_test_df, category_en, shop_name_en, item_name_en):
+def get_X_test(sales_train_df, sales_test_df, items_df, category_en, shop_name_en, item_name_en):
 
     # Ensure that missing item_ids' are replaced.
-    idf = IdFeatures(sales_train_df)
+    idf = IdFeatures(sales_train_df, items_df)
     idf.set_alternate_ids(item_name_en, sales_test_df)
+
     sales_test_df['item_id'] = sales_test_df['item_id'].apply(idf.transform_item_id_to_alternate_id)
 
     sales_test_df['date'] = '01.11.2015'
@@ -60,16 +61,19 @@ def get_X_test(sales_train_df, sales_test_df, category_en, shop_name_en, item_na
     valid_dummy_values = pd.concat([valid_cnt, valid_prices], axis=1)
 
     sales_test_df = sales_test_df.reset_index()
-    sales_test_df = pd.join([sales_test_df, valid_dummy_values], on=['item_id', 'shop_id'], how='left')
+    sales_test_df = pd.merge(sales_test_df, valid_dummy_values, on=['item_id', 'shop_id'], how='left')
     sales_test_df = sales_test_df.set_index('index')
-    recent_sales_df = sales_train_df[sales_train_df.date_f > pd.TimeStamp(year=2015, month=4)]
+    date_preprocessing(sales_test_df)
+
+    recent_sales_df = sales_train_df[sales_train_df.date_f > pd.Timestamp(year=2015, month=4, day=1)]
+    recent_sales_df = recent_sales_df.drop('shop_item_group', axis=1)
 
     subtract_index_offset = max(recent_sales_df.index) - (min(sales_test_df.index) - 1)
     recent_sales_df.index -= subtract_index_offset
 
-    df = pd.concat([recent_sales_df, sales_test_df], axis=0)
+    df = pd.concat([recent_sales_df, sales_test_df], axis=0, sort=False)
 
-    X_df = get_X(df)
+    X_df = get_X(df, items_df, category_en, shop_name_en)
     X_df = X_df.loc[sales_test_df.index]
 
     return X_df

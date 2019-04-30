@@ -53,12 +53,15 @@ def get_y(sales_df):
     return sum_sales_df[filtr]
 
 
-def basic_preprocessing(sales_df):
+def date_preprocessing(sales_df):
     if 'date_f' not in sales_df:
         sales_df['date_f'] = pd.to_datetime(sales_df.date, format='%d.%m.%Y')
         sales_df['month'] = sales_df.date_f.apply(lambda x: x.month)
         sales_df['year'] = sales_df.date_f.apply(lambda x: x.year)
 
+
+def basic_preprocessing(sales_df):
+    date_preprocessing(sales_df)
     sales_df.sort_values(['shop_id', 'item_id', 'date_f'], inplace=True)
 
     if 'shop_item_group' not in sales_df:

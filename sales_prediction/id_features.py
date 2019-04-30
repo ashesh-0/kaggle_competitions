@@ -3,6 +3,7 @@ from typing import List
 from multiprocessing import Pool
 import numpy as np
 import pandas as pd
+import os
 
 
 class IdFeatures:
@@ -11,8 +12,10 @@ class IdFeatures:
     """
 
     def __init__(self, sales_df: pd.DataFrame, items_df: pd.DataFrame):
-        self._sales_df = sales_df
 
+        self._test_mode = int(os.environ.get('TEST_MODE_RUN', '0'))
+
+        self._sales_df = sales_df
         # given a category, list of items
         self._category_to_item_df = items_df.groupby('item_category_id')['item_id'].apply(list)
 
@@ -65,12 +68,16 @@ class IdFeatures:
             min_id = np.argmin(distance)
             return (unavailable_id, min_id, distance[min_id])
 
-        pool = Pool(processes=4)
-        for unavailable_id in extra_item_ids:
-            pool.apply_async(get_id_distance, args=(unavailable_id, ), callback=update_progress)
+        if self._test_mode:
+            for unavailable_id in extra_item_ids:
+                update_progress(get_id_distance(unavailable_id))
+        else:
+            pool = Pool(processes=4)
+            for unavailable_id in extra_item_ids:
+                pool.apply_async(get_id_distance, args=(unavailable_id, ), callback=update_progress)
 
-        pool.close()
-        pool.join()
+            pool.close()
+            pool.join()
 
     def fit(self):
         self._item_id_old_to_new = self._fit('item_id')
