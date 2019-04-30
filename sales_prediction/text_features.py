@@ -29,7 +29,7 @@ class TextFeatures:
         # Prepare a pandas series object for easy concatenating.
         self._catg_features_dict = {}
         for i in range(len(self._catg_en)):
-            ser = pd.Series(self._catg_features[i].toarray().reshape(-1))
+            ser = pd.Series(self._catg_features[i].toarray().reshape(-1), dtype=bool)
             ser.index = list(map(lambda x: 'catg_text_' + str(x), ser.index))
             self._catg_features_dict[i] = ser
 
@@ -40,7 +40,7 @@ class TextFeatures:
         # Prepare a pandas series object for easy concatenating.
         self._shop_n_features_dict = {}
         for i in range(len(self._shop_n_en)):
-            ser = pd.Series(self._shop_n_features[i].toarray().reshape(-1))
+            ser = pd.Series(self._shop_n_features[i].toarray().reshape(-1), dtype=bool)
             ser.index = list(map(lambda x: 'shop_text_' + str(x), ser.index))
             self._shop_n_features_dict[i] = ser
 
