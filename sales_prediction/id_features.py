@@ -1,5 +1,6 @@
+from sklearn.cluster.bicluster import SpectralBiclustering
 import Levenshtein as lev
-from typing import List
+from typing import List, Tuple
 from multiprocessing import Pool
 import numpy as np
 import pandas as pd
@@ -11,11 +12,14 @@ class IdFeatures:
     We will change the id of item and shop so that it becomes easier for trees to split data.
     """
 
-    def __init__(self, sales_df: pd.DataFrame, items_df: pd.DataFrame):
+    def __init__(self, sales_df: pd.DataFrame, items_df: pd.DataFrame, num_clusters: Tuple[int, int] = (4, 4)):
+
+        self._sales_df = sales_df
+        self._items_df = items_df
+        self._num_clusters = num_clusters
 
         self._test_mode = int(os.environ.get('TEST_MODE_RUN', '0'))
 
-        self._sales_df = sales_df
         # given a category, list of items
         self._category_to_item_df = items_df.groupby('item_category_id')['item_id'].apply(list)
 
@@ -27,7 +31,30 @@ class IdFeatures:
         self._item_id_alternate = {}
         self._item_id_alternate_dist = {}
 
+        # Using biclustering, we will assign cluster_ids which can then be used.
+        self._category_id_to_cluster = {}
+        self._shop_id_to_cluster = {}
+
         self.fit()
+
+    def _fit_cluster(self):
+        if 'item_category_id' not in self._sales_df:
+            merged_df = pd.merge(self._sales_df, self._items_df, how='left', on='item_id')
+        else:
+            merged_df = self._sales_df
+
+        df = merged_df.groupby(['shop_id', 'item_category_id', 'month'])['item_cnt_day'].sum().reset_index()
+        df = df.groupby(['shop_id', 'item_category_id'])['item_cnt_day'].mean()
+        df[df > 20] = 20
+
+        data_df = df.unstack()
+        data = data_df.fillna(data_df.mean()).values
+
+        model = SpectralBiclustering(n_clusters=self._num_clusters, method='log', random_state=0)
+        model.fit(data)
+
+        self._shop_id_to_cluster = dict(list(zip(data_df.index.tolist(), model.row_labels_)))
+        self._category_id_to_cluster = dict(list(zip(data_df.columns.tolist(), model.column_labels_)))
 
     def _fit(self, id_name):
         monthly_df = self._sales_df.groupby(['date_block_num', id_name])['item_cnt_day'].sum().unstack().fillna(0)
@@ -83,15 +110,23 @@ class IdFeatures:
         self._item_id_old_to_new = self._fit('item_id')
         self._shop_id_old_to_new = self._fit('shop_id')
 
+        self._fit_cluster()
+
     def transform_item_id_to_alternate_id(self, item_id):
         # some item ids donot exist in the training data. For them, we need to map them to appropriate items
         return self._item_id_alternate.get(item_id, item_id)
+
+    def transform_category_id_to_cluster(self, category_id):
+        return self._category_id_to_cluster[category_id]
 
     def transform_item_id(self, item_id):
         return self._item_id_old_to_new[item_id]
 
     def transform_shop_id(self, shop_id):
         return self._shop_id_old_to_new[shop_id]
+
+    def transform_shop_id_to_cluster(self, shop_id):
+        return self._shop_id_to_cluster[shop_id]
 
     def get_features(self, item_id, shop_id):
         return np.array([[self._item_id_old_to_new[item_id], self._shop_id_old_to_new[shop_id]]])

@@ -1,38 +1,9 @@
 import numpy as np
 import pandas as pd
-from multiprocessing import Pool
-
-
-def ndays_features(sales_df, col_name, num_days):
-    groupby_obj = sales_df.groupby('shop_item_group')[col_name].rolling(num_days, min_periods=1)
-    fmt = '{}_{}'.format(col_name, num_days) + 'day_{}'
-    fns = [
-        (groupby_obj.mean, (), fmt.format('mean')),
-        (groupby_obj.std, (), fmt.format('std')),
-        (groupby_obj.min, (), fmt.format('min')),
-        (groupby_obj.max, (), fmt.format('max')),
-        (groupby_obj.quantile, (0.1, ), fmt.format('qt_' + str(10))),
-        (groupby_obj.quantile, (0.25, ), fmt.format('qt_' + str(25))),
-        (groupby_obj.quantile, (0.5, ), fmt.format('qt_' + str(50))),
-        (groupby_obj.quantile, (0.75, ), fmt.format('qt_' + str(75))),
-        (groupby_obj.quantile, (0.95, ), fmt.format('qt_' + str(95))),
-    ]
-    return fns
-
-
-def run(fn_args):
-    fn, args, name = fn_args
-    print('Starting', args)
-    return fn(*args).to_frame(name)
-
-
-def compute_concurrently(args, process_count=4):
-
-    with Pool(processes=process_count) as pool:
-        output = pool.map(run, args)
-
-    df = pd.concat(output, axis=1)
-    return df.reset_index(level=0).drop('shop_item_group', axis=1)
+from numeric_utils import compute_concurrently
+from numeric_rolling_features import ndays_features
+from numeric_monthly_features import MonthlyFeatures
+from numeric_overall_features import OverallFeatures
 
 
 def get_y(sales_df):
@@ -71,7 +42,7 @@ def basic_preprocessing(sales_df):
         sales_df['shop_item_group'] = ids_changed.cumsum()
 
 
-def get_numeric_X_df(sales_df, process_count=4):
+def get_numeric_rolling_feature_df(sales_df, process_count=4):
     basic_preprocessing(sales_df)
 
     sales_df['log_p'] = np.log(sales_df['item_price'])
@@ -89,6 +60,42 @@ def get_numeric_X_df(sales_df, process_count=4):
     df['year'] = sales_df['year'] - 2014
     df['shop_id'] = sales_df['shop_id']
     df['item_id'] = sales_df['item_id']
+    df['item_category_id'] = sales_df['item_category_id']
 
     # std on first date is NaN
     return df.dropna()
+
+
+class NumericFeatures:
+    def __init__(self, sales_df, items_df):
+        self._sales_df = sales_df
+        self._items_df = items_df
+
+        basic_preprocessing(sales_df)
+
+        self._monthly_features = MonthlyFeatures(self._sales_df, self._items_df)
+        self._overall_features = OverallFeatures(self._sales_df, self._items_df)
+
+    def get(self, sales_df):
+        df = get_numeric_rolling_feature_df(sales_df)
+        print('Numeric numeric rolling feature computation is complete.')
+
+        item_m_df = df[['item_id', 'month']].apply(self._monthly_features.item_features, axis=1)
+        shop_m_df = df[['shop_id', 'month']].apply(self._monthly_features.shop_features, axis=1)
+        categ_m_df = df[['item_category_id', 'month']].apply(self._monthly_features.category_features, axis=1)
+        m_df = df['month'].apply(self._monthly_features.month_features)
+        df = pd.concat([df, item_m_df, shop_m_df, categ_m_df, m_df], axis=1)
+        del item_m_df, shop_m_df, categ_m_df, m_df
+        print('Monthly numeric feature computation is complete')
+
+        # Overall features
+        item_o_df = df['item_id'].apply(self._overall_features.item_features)
+        shop_o_df = df['shop_id'].apply(self._overall_features.shop_features)
+        categ_o_df = df['item_category_id'].apply(self._overall_features.category_features)
+        print(df)
+        print(item_o_df)
+        print(shop_o_df)
+        print(categ_o_df)
+        df = pd.concat([df, item_o_df, shop_o_df, categ_o_df], axis=1)
+        print("Overall numeric feature computation is complete.")
+        return df
