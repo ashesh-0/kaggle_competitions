@@ -30,7 +30,13 @@ def monthly_features(sales_df, items_df):
         df9 = groupby_obj.quantile(0.95).to_frame(fmt.format('qt_' + str(95)))
 
         df = pd.concat([df1, df2, df3, df4, df5, df6, df7, df8, df9], axis=1).astype('float32')
+        # there could be some month for a particular item_id/shop_id/category_id which does not have any data point.
+        # It means not a single item was bought and so item_cnt_day will be 0. So all features computed here will be 0.
+        if isinstance(df.index, pd.MultiIndex):
+            df = df.unstack().fillna(0).stack().sort_index()
+
         output[name] = df
+
     return output
 
 

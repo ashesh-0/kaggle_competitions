@@ -100,14 +100,21 @@ class NumericFeatures:
         return output_df
 
     def get(self, sales_df):
+        assert sales_df[sales_df.item_id.isin([83, 173])].empty
+
         df = get_numeric_rolling_feature_df(sales_df)
+        assert df[df.item_id.isin([83, 173])].empty
         print('Numeric numeric rolling feature computation is complete.')
         df.reset_index(inplace=True)
 
         df = self._add_features(df, ['shop_id', 'month'], self._monthly_features.shop_features)
+        assert df[df.item_id.isin([83, 173])].empty
         df = self._add_features(df, ['item_category_id', 'month'], self._monthly_features.category_features)
+        assert df[df.item_id.isin([83, 173])].empty
         df = self._add_features(df, ['month'], self._monthly_features.month_features)
+        assert df[df.item_id.isin([83, 173])].empty
         df = self._add_features(df, ['item_id', 'month'], self._monthly_features.item_features)
+        assert df[df.item_id.isin([83, 173])].empty
         print('Monthly numeric feature computation is complete')
 
         # Overall features

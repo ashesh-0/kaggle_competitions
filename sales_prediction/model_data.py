@@ -126,12 +126,19 @@ class ModelData:
 
     def get_test_X(self, sales_test_df):
         gc.collect()
-        # Ensure that missing item_ids' are replaced.
+        # adding items_category_id to dataframe.
+        item_to_cat_dict = self._items_df.set_index('item_id')['item_category_id'].to_dict()
+        sales_test_df['item_category_id'] = sales_test_df.item_id.map(item_to_cat_dict)
+
+        # Ensure that item_ids missing in train are replaced by nearby ids.
         self._id_features.set_alternate_ids(self._item_name_en, sales_test_df)
         sales_test_df['orig_item_id'] = sales_test_df['item_id']
 
         sales_test_df['item_id'] = sales_test_df['item_id'].map(
             self._id_features.transform_item_id_to_alternate_id_dict())
+
+        assert sales_test_df[sales_test_df.item_id.isin([83, 173])].empty
+
         sales_test_df['date'] = '01.11.2015'
         sales_test_df['date_block_num'] = self._sales_df['date_block_num'].max() + 1
 
