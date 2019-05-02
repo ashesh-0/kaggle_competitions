@@ -2,11 +2,9 @@ import pandas as pd
 
 
 def monthly_features(sales_df, items_df):
-    merged_df = pd.merge(sales_df, items_df, on='item_id', how='left')
-
     # monthly item sales
-    monthly_item_sales_df = merged_df.groupby(['item_category_id', 'month', 'item_id',
-                                               'shop_id'])['item_cnt_day'].sum().reset_index()
+    monthly_item_sales_df = sales_df.groupby(['item_category_id', 'month', 'item_id',
+                                              'shop_id'])['item_cnt_day'].sum().reset_index()
 
     # average monthly sales
     category_sales_grp = monthly_item_sales_df.groupby(['item_category_id', 'month'])['item_cnt_day']
@@ -31,7 +29,7 @@ def monthly_features(sales_df, items_df):
         df8 = groupby_obj.quantile(0.75).to_frame(fmt.format('qt_' + str(75)))
         df9 = groupby_obj.quantile(0.95).to_frame(fmt.format('qt_' + str(95)))
 
-        df = pd.concat([df1, df2, df3, df4, df5, df6, df7, df8, df9], axis=1)
+        df = pd.concat([df1, df2, df3, df4, df5, df6, df7, df8, df9], axis=1).astype('float32')
         output[name] = df
     return output
 
@@ -57,5 +55,6 @@ class MonthlyFeatures:
         month = category_id_month.iloc[1]
         return self._monthly_features_dict['category'].loc[category_id, month]
 
-    def month_features(self, month):
-        return self._monthly_features_dict['category'].loc[month]
+    def month_features(self, month: pd.Series):
+        month = int(month.iloc[0])
+        return self._monthly_features_dict['month'].loc[month]

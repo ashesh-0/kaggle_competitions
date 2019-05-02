@@ -74,7 +74,8 @@ class IdFeatures:
         """
         Some item_ids were not present in training data. We need to find substitute ids.
         """
-        self._item_id_alternate = {}
+        # default self dict
+        self._item_id_alternate = dict(pd.concat([self._items_df['item_id'], self._items_df['item_id']], axis=1).values)
         self._item_id_alternate_dist = {}
 
         # These ids don't appear in train data.
@@ -112,24 +113,21 @@ class IdFeatures:
 
         self._fit_cluster()
 
-    def transform_item_id_to_alternate_id(self, item_id):
+    def transform_item_id_to_alternate_id_dict(self):
         # some item ids donot exist in the training data. For them, we need to map them to appropriate items
-        return self._item_id_alternate.get(item_id, item_id)
+        return self._item_id_alternate
 
-    def transform_category_id_to_cluster(self, category_id):
-        return self._category_id_to_cluster[category_id]
+    def transform_category_id_to_cluster_dict(self):
+        return self._category_id_to_cluster
 
-    def transform_item_id(self, item_id):
-        return self._item_id_old_to_new[item_id]
+    def transform_item_id_dict(self):
+        return self._item_id_old_to_new
 
-    def transform_shop_id(self, shop_id):
-        return self._shop_id_old_to_new[shop_id]
+    def transform_shop_id_dict(self):
+        return self._shop_id_old_to_new
 
-    def transform_shop_id_to_cluster(self, shop_id):
-        return self._shop_id_to_cluster[shop_id]
-
-    def get_features(self, item_id, shop_id):
-        return np.array([[self._item_id_old_to_new[item_id], self._shop_id_old_to_new[shop_id]]])
+    def transform_shop_id_to_cluster_dict(self):
+        return self._shop_id_to_cluster
 
 
 # if __name__ == '__main__':

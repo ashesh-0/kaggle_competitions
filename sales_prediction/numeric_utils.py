@@ -3,9 +3,9 @@ import pandas as pd
 
 
 def run(fn_args):
-    fn, args, name = fn_args
+    fn, args, kwargs, name = fn_args
     print('Starting', args)
-    return fn(*args).to_frame(name)
+    return fn(*args, **kwargs).to_frame(name)
 
 
 def compute_concurrently(args, process_count=4):

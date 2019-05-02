@@ -1,3 +1,4 @@
+import gc
 import pandas as pd
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
@@ -81,15 +82,13 @@ class ModelData:
         self._shop_name_en = shop_name_en
         self._item_name_en = item_name_en
 
+        # adding items_category_id to dataframe.
+        item_to_cat_dict = self._items_df.set_index('item_id')['item_category_id'].to_dict()
+        self._sales_df['item_category_id'] = self._sales_df.item_id.map(item_to_cat_dict)
+
         self._numeric_features = NumericFeatures(self._sales_df, self._items_df)
         self._id_features = IdFeatures(self._sales_df, self._items_df, num_clusters=num_clusters)
         self._text_features = TextFeatures(category_en, shop_name_en)
-
-        # adding items_category_id to dataframe.
-        self._sales_df = self._sales_df.reset_index()
-        self._sales_df = pd.merge(
-            self._sales_df, self._items_df[['item_id', 'item_category_id']], how='left', on='item_id')
-        self._sales_df = self._sales_df.set_index('index')
 
     def get_train_X_y(self):
         X_df = self.preprocess_X(self._sales_df)
@@ -114,19 +113,25 @@ class ModelData:
         print('Text features added')
 
         # Adding id features
-        X_df['category_cluster'] = X_df['item_category_id'].apply(self._id_features.transform_category_id_to_cluster)
-        X_df['shop_cluster'] = X_df['shop_id'].apply(self._id_features.transform_shop_id_to_cluster)
+        X_df['category_cluster'] = X_df['item_category_id'].map(
+            self._id_features.transform_category_id_to_cluster_dict()).astype('int8')
 
-        X_df['item_id'] = X_df['item_id'].apply(self._id_features.transform_item_id)
-        X_df['shop_id'] = X_df['shop_id'].apply(self._id_features.transform_shop_id)
+        X_df['shop_cluster'] = X_df['shop_id'].map(self._id_features.transform_shop_id_to_cluster_dict()).astype('int8')
+
+        X_df['item_id'] = X_df['item_id'].map(self._id_features.transform_item_id_dict()).astype('int32')
+        X_df['shop_id'] = X_df['shop_id'].map(self._id_features.transform_shop_id_dict()).astype('int8')
+
         print('Id features added')
+        return X_df
 
     def get_test_X(self, sales_test_df):
+        gc.collect()
         # Ensure that missing item_ids' are replaced.
         self._id_features.set_alternate_ids(self._item_name_en, sales_test_df)
         sales_test_df['orig_item_id'] = sales_test_df['item_id']
 
-        sales_test_df['item_id'] = sales_test_df['item_id'].apply(self._id_features.transform_item_id_to_alternate_id)
+        sales_test_df['item_id'] = sales_test_df['item_id'].map(
+            self._id_features.transform_item_id_to_alternate_id_dict())
         sales_test_df['date'] = '01.11.2015'
         sales_test_df['date_block_num'] = self._sales_df['date_block_num'].max() + 1
 
@@ -151,7 +156,7 @@ class ModelData:
         sales_test_df = sales_test_df.set_index('index')
         date_preprocessing(sales_test_df)
 
-        recent_sales_df = sales_train_df[sales_train_df.date_f > pd.Timestamp(year=2015, month=4, day=1)]
+        recent_sales_df = sales_train_df[sales_train_df.date_f > pd.Timestamp(year=2015, month=6, day=1)]
         recent_sales_df = recent_sales_df.drop('shop_item_group', axis=1)
 
         subtract_index_offset = max(recent_sales_df.index) - (min(sales_test_df.index) - 1)
@@ -159,6 +164,13 @@ class ModelData:
 
         df = pd.concat([recent_sales_df, sales_test_df], axis=0, sort=False)
 
+        del recent_sales_df, valid_cnt, valid_prices, valid_dummy_values
+
+        print('Preprocessing X about to be done now.')
         X_df = self.preprocess_X(df)
         X_df = X_df.loc[sales_test_df.index]
+
+        del df, sales_test_df
+        gc.collect()
+
         return X_df

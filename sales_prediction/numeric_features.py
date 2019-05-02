@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+from typing import List
+
 from numeric_utils import compute_concurrently
 from numeric_rolling_features import ndays_features
 from numeric_monthly_features import MonthlyFeatures
@@ -27,8 +29,8 @@ def get_y(sales_df):
 def date_preprocessing(sales_df):
     if 'date_f' not in sales_df:
         sales_df['date_f'] = pd.to_datetime(sales_df.date, format='%d.%m.%Y')
-        sales_df['month'] = sales_df.date_f.apply(lambda x: x.month)
-        sales_df['year'] = sales_df.date_f.apply(lambda x: x.year)
+        sales_df['month'] = sales_df.date_f.apply(lambda x: x.month).astype('uint8')
+        sales_df['year'] = sales_df.date_f.apply(lambda x: x.year).astype('uint16')
 
 
 def basic_preprocessing(sales_df):
@@ -54,16 +56,17 @@ def get_numeric_rolling_feature_df(sales_df, process_count=4):
 
     args = price_1M_features_args + sales_1M_features_args + sales_3M_features_args
 
-    df = compute_concurrently(args, process_count=process_count)
+    df = compute_concurrently(args, process_count=process_count).astype('float32')
 
-    df['month'] = sales_df['month']
+    df['month'] = sales_df['month'].astype('uint8')
     df['year'] = sales_df['year'] - 2014
-    df['shop_id'] = sales_df['shop_id']
-    df['item_id'] = sales_df['item_id']
-    df['item_category_id'] = sales_df['item_category_id']
+    df['shop_id'] = sales_df['shop_id'].astype('uint8')
+    df['item_id'] = sales_df['item_id'].astype('uint16')
+    df['item_category_id'] = sales_df['item_category_id'].astype('uint8')
 
     # std on first date is NaN
-    return df.dropna()
+    print('Number of nan elements', df.isna().sum().sum())
+    return df
 
 
 class NumericFeatures:
@@ -76,26 +79,44 @@ class NumericFeatures:
         self._monthly_features = MonthlyFeatures(self._sales_df, self._items_df)
         self._overall_features = OverallFeatures(self._sales_df, self._items_df)
 
+    def _add_features(self, output_df: pd.DataFrame, feature_id_list: List[str], function):
+        """
+        Args:
+            output_df: Newly added features will be added on this dataframe and returned.
+            feature_id_list: list of columns of output_df which is to be treated as id for feature generation. For
+                    example, for creating features for item_ids every month, we need to pass ['item_id', 'month'] as
+                    feature_id_list
+            function: which function to be applied to each unique value set of feature_id_list
+
+        """
+        unique_feature_id_df = output_df[feature_id_list
+                                         + ['index']].groupby(feature_id_list)['index'].count().reset_index()
+        features_df = unique_feature_id_df.apply(function, axis=1).astype('float32')
+        for col_name in feature_id_list:
+            features_df[col_name] = unique_feature_id_df[col_name]
+
+        output_df = pd.merge(output_df, features_df, how='left', on=feature_id_list)
+        print(' Numeric features on {} is complete'.format(feature_id_list))
+        return output_df
+
     def get(self, sales_df):
         df = get_numeric_rolling_feature_df(sales_df)
         print('Numeric numeric rolling feature computation is complete.')
+        df.reset_index(inplace=True)
 
-        item_m_df = df[['item_id', 'month']].apply(self._monthly_features.item_features, axis=1)
-        shop_m_df = df[['shop_id', 'month']].apply(self._monthly_features.shop_features, axis=1)
-        categ_m_df = df[['item_category_id', 'month']].apply(self._monthly_features.category_features, axis=1)
-        m_df = df['month'].apply(self._monthly_features.month_features)
-        df = pd.concat([df, item_m_df, shop_m_df, categ_m_df, m_df], axis=1)
-        del item_m_df, shop_m_df, categ_m_df, m_df
+        df = self._add_features(df, ['shop_id', 'month'], self._monthly_features.shop_features)
+        df = self._add_features(df, ['item_category_id', 'month'], self._monthly_features.category_features)
+        df = self._add_features(df, ['month'], self._monthly_features.month_features)
+        df = self._add_features(df, ['item_id', 'month'], self._monthly_features.item_features)
         print('Monthly numeric feature computation is complete')
 
         # Overall features
-        item_o_df = df['item_id'].apply(self._overall_features.item_features)
-        shop_o_df = df['shop_id'].apply(self._overall_features.shop_features)
-        categ_o_df = df['item_category_id'].apply(self._overall_features.category_features)
-        print(df)
-        print(item_o_df)
-        print(shop_o_df)
-        print(categ_o_df)
-        df = pd.concat([df, item_o_df, shop_o_df, categ_o_df], axis=1)
+        df = self._add_features(df, ['item_id'], self._overall_features.item_features)
+        df = self._add_features(df, ['shop_id'], self._overall_features.shop_features)
+        df = self._add_features(df, ['item_category_id'], self._overall_features.category_features)
+
+        df.set_index('index', inplace=True)
+
         print("Overall numeric feature computation is complete.")
+
         return df

@@ -2,10 +2,9 @@ import pandas as pd
 
 
 def overall_features(sales_df, items_df):
-    merged_df = pd.merge(sales_df, items_df, on='item_id', how='left')
     # monthly item sales
-    monthly_item_sales_df = merged_df.groupby(['item_category_id', 'month', 'item_id',
-                                               'shop_id'])['item_cnt_day'].sum().reset_index()
+    monthly_item_sales_df = sales_df.groupby(['item_category_id', 'month', 'item_id',
+                                              'shop_id'])['item_cnt_day'].sum().reset_index()
     category_sales_grp = monthly_item_sales_df.groupby(['item_category_id'])['item_cnt_day']
     shop_sales_grp = monthly_item_sales_df.groupby(['shop_id'])['item_cnt_day']
     item_sales_grp = monthly_item_sales_df.groupby(['item_id'])['item_cnt_day']
@@ -27,7 +26,7 @@ def overall_features(sales_df, items_df):
         arr += [groupby_obj.quantile(0.75).to_frame(fmt.format('qt_' + str(75)))]
         arr += [groupby_obj.quantile(0.95).to_frame(fmt.format('qt_' + str(95)))]
 
-        df = pd.concat(arr, axis=1)
+        df = pd.concat(arr, axis=1).astype('float32')
         output[name] = df
 
     return output
@@ -39,11 +38,11 @@ class OverallFeatures:
         self._items_df = items_df
         self._overall_features_dict = overall_features(sales_df, items_df)
 
-    def item_features(self, item_id):
-        return self._overall_features_dict['item'].loc[item_id]
+    def item_features(self, item_id: pd.Series):
+        return self._overall_features_dict['item'].loc[item_id.iloc[0]]
 
-    def shop_features(self, shop_id):
-        return self._overall_features_dict['shop'].loc[shop_id]
+    def shop_features(self, shop_id: pd.Series):
+        return self._overall_features_dict['shop'].loc[shop_id.iloc[0]]
 
-    def category_features(self, category_id):
-        return self._overall_features_dict['category'].loc[category_id]
+    def category_features(self, category_id: pd.Series):
+        return self._overall_features_dict['category'].loc[category_id.iloc[0]]
