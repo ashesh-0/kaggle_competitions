@@ -20,15 +20,19 @@ def get_y(sales_df):
     # inverted_index = rev_sales_df.index.tolist()
 
     tail_index_position = 0
+    head_index_position = -1
     tail_index = inverted_data.index[tail_index_position]
     tail_day = inverted_data.iloc[0]['days']
     cur_group = inverted_data.iloc[0]['shop_item_group']
     running_sum = 0
     for head_index in tqdm_notebook(rev_sales_df.index):
         head_group = inverted_data.at[head_index, 'shop_item_group']
+        head_index_position += 1
+
         if head_group != cur_group:
             cur_group = head_group
             tail_index = head_index
+            tail_index_position = head_index_position
             running_sum = inverted_data.at[head_index, 'item_cnt_day']
             tail_day = inverted_data.at[head_index, 'days']
         else:

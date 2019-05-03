@@ -23,7 +23,7 @@ class ModelData:
 
     def get_train_X_y(self):
         X_df = self.preprocess_X(self._sales_df)
-        y_df = get_y(self._sales_df)
+        y_df = get_y(self._sales_df).to_frame('item_cnt_month')
         print('Y fetched')
 
         # Retain common rows
