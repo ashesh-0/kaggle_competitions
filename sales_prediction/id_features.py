@@ -77,23 +77,27 @@ class IdFeatures:
         # These ids don't appear in train data.
         extra_item_ids = self.find_missing_ids(test_sales_df)
 
-        def update_progress(ans):
-            self._item_id_alternate[ans[0]] = ans[1]
-            self._item_id_alternate_dist[ans[0]] = ans[2]
-
         def get_id_distance(unavailable_id):
             distance = []
+            ids = []
+
             target_str = item_names_en[unavailable_id].lower()
             available_neighbour_ids = self._category_to_item_df[self._item_to_category_df[unavailable_id]]
             for i_id in available_neighbour_ids:
                 if i_id in extra_item_ids:
                     continue
+                ids.append(i_id)
                 distance.append(lev.distance(item_names_en[i_id].lower(), target_str))
-            min_id = np.argmin(distance)
-            return (unavailable_id, min_id, distance[min_id])
+
+            min_id_index = np.argmin(distance)
+            min_id = ids[min_id_index]
+
+            return (unavailable_id, min_id, distance[min_id_index])
 
         for unavailable_id in extra_item_ids:
-            update_progress(get_id_distance(unavailable_id))
+            ans = get_id_distance(unavailable_id)
+            self._item_id_alternate[ans[0]] = ans[1]
+            self._item_id_alternate_dist[ans[0]] = ans[2]
 
     def fit(self):
         self._item_id_old_to_new = self._fit('item_id')
