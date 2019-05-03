@@ -1,7 +1,8 @@
+from datetime import datetime
 import numpy as np
 import pandas as pd
 from typing import List
-
+from tqdm import tqdm_notebook
 from numeric_utils import compute_concurrently
 from numeric_rolling_features import ndays_features
 from numeric_monthly_features import MonthlyFeatures
@@ -10,27 +11,48 @@ from numeric_overall_features import OverallFeatures
 
 def get_y(sales_df):
     basic_preprocessing(sales_df)
+    # now, it is sorted by shop_id, item_id and date.
+    # Also, shop_item_group value changes when either the shop or the item changes.
 
-    grp = sales_df[::-1].groupby('shop_item_group')['item_cnt_day'].rolling(30, min_periods=4)
-    sum_sales_df = grp.mean().dropna()
+    rev_sales_df = sales_df[::-1]
+    y_df = pd.Series(index=rev_sales_df.index)
+    inverted_data = rev_sales_df[['days', 'item_cnt_day', 'shop_item_group']]
+    # inverted_index = rev_sales_df.index.tolist()
 
-    # Extrapolate to 30 days.
-    sum_sales_df = sum_sales_df * 30
+    tail_index_position = 0
+    tail_index = inverted_data.index[tail_index_position]
+    tail_day = inverted_data.iloc[0]['days']
+    cur_group = inverted_data.iloc[0]['shop_item_group']
+    running_sum = 0
+    for head_index in tqdm_notebook(rev_sales_df.index):
+        head_group = inverted_data.at[head_index, 'shop_item_group']
+        if head_group != cur_group:
+            cur_group = head_group
+            tail_index = head_index
+            running_sum = inverted_data.at[head_index, 'item_cnt_day']
+            tail_day = inverted_data.at[head_index, 'days']
+        else:
+            running_sum += inverted_data.at[head_index, 'item_cnt_day']
 
-    # Get it in correct order of date.
-    sum_sales_df = sum_sales_df.reset_index(level=0).drop('shop_item_group', axis=1)
-    sum_sales_df = sum_sales_df.sort_index()
+        head_day = inverted_data.at[head_index, 'days']
+        while tail_day - head_day > 30:
+            running_sum -= inverted_data.at[tail_index, 'item_cnt_day']
+            tail_index_position += 1
+            tail_index = inverted_data.index[tail_index_position]
+            tail_day = inverted_data.at[tail_index, 'days']
 
-    # We don't want to use data for November.
-    filtr = sales_df.loc[sum_sales_df.index]['date_f'] < pd.Timestamp(year=2015, month=11, day=1)
-    return sum_sales_df[filtr]
+        y_df.at[head_index] = running_sum
+
+    return y_df.loc[sales_df.index]
 
 
 def date_preprocessing(sales_df):
+    start_date = datetime(2013, 1, 1)
     if 'date_f' not in sales_df:
         sales_df['date_f'] = pd.to_datetime(sales_df.date, format='%d.%m.%Y')
         sales_df['month'] = sales_df.date_f.apply(lambda x: x.month).astype('uint8')
         sales_df['year'] = sales_df.date_f.apply(lambda x: x.year).astype('uint16')
+        sales_df['days'] = (sales_df['date_f'] - start_date).apply(lambda x: x.days)
 
 
 def basic_preprocessing(sales_df):
@@ -59,7 +81,7 @@ def get_numeric_rolling_feature_df(sales_df, process_count=4):
     df = compute_concurrently(args, process_count=process_count).astype('float32')
 
     df['month'] = sales_df['month'].astype('uint8')
-    df['year'] = sales_df['year'] - 2014
+    df['year'] = sales_df['year'] - 2013
     df['shop_id'] = sales_df['shop_id'].astype('uint8')
     df['item_id'] = sales_df['item_id'].astype('uint16')
     df['item_category_id'] = sales_df['item_category_id'].astype('uint8')
