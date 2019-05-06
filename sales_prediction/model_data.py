@@ -1,5 +1,6 @@
 import gc
 import pandas as pd
+from datetime import timedelta, datetime
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
 from text_features import TextFeatures
@@ -19,7 +20,7 @@ class ModelData:
 
         self._numeric_features = NumericFeatures(self._sales_df, self._items_df)
         self._id_features = IdFeatures(self._sales_df, self._items_df, num_clusters=num_clusters)
-        self._text_features = TextFeatures(category_en, shop_name_en)
+        # self._text_features = TextFeatures(category_en, shop_name_en)
 
     def get_train_X_y(self):
         X_df = self.preprocess_X(self._sales_df)
@@ -37,11 +38,11 @@ class ModelData:
         X_df = self._numeric_features.get(sales_df)
 
         # Adding text features.
-        shop_name_features_df = X_df['shop_id'].apply(self._text_features.get_shop_feature_series)
-        category_name_features_df = X_df['item_category_id'].apply(self._text_features.get_category_feature_series)
-        print('Text features fetched')
-        X_df = pd.concat([X_df, shop_name_features_df, category_name_features_df], axis=1)
-        print('Text features added')
+        # shop_name_features_df = X_df['shop_id'].apply(self._text_features.get_shop_feature_series)
+        # category_name_features_df = X_df['item_category_id'].apply(self._text_features.get_category_feature_series)
+        # print('Text features fetched')
+        # X_df = pd.concat([X_df, shop_name_features_df, category_name_features_df], axis=1)
+        # print('Text features added')
 
         # Adding id features
         X_df['category_cluster'] = X_df['item_category_id'].map(
@@ -55,7 +56,7 @@ class ModelData:
         print('Id features added')
         return X_df
 
-    def get_test_X(self, sales_test_df):
+    def get_test_X(self, sales_test_df, test_datetime: datetime):
         gc.collect()
         # adding items_category_id to dataframe.
         item_to_cat_dict = self._items_df.set_index('item_id')['item_category_id'].to_dict()
@@ -97,7 +98,8 @@ class ModelData:
         sales_test_df = sales_test_df.set_index('index')
         date_preprocessing(sales_test_df)
 
-        recent_sales_df = sales_train_df[sales_train_df.date_f > pd.Timestamp(year=2015, month=6, day=1)]
+        recent_dt = test_datetime - timedelta(months=5)
+        recent_sales_df = sales_train_df[(sales_train_df.date_f > recent_dt) & (sales_train_df.date_f < test_datetime)]
         recent_sales_df = recent_sales_df.drop('shop_item_group', axis=1)
 
         subtract_index_offset = max(recent_sales_df.index) - (min(sales_test_df.index) - 1)

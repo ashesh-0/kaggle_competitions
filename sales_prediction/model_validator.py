@@ -16,11 +16,19 @@ class ModelValidator:
         self._train_end_date_block_num = self._sales_df.date_block_num.max()
         self._skip_last_n_months = skip_last_n_months
 
-    def get_train_val_data(self):
+    def get_train_df(self):
         val_date_block_num = self._train_end_date_block_num - self._skip_last_n_months
-        train_df = self._X_df.loc[self._sales_df[self._sales_df.date_block_num < val_date_block_num].index]
-        y_df = self._y_df.loc[train_df.index]
+        train_X_df = self._X_df.loc[self._sales_df[self._sales_df.date_block_num < val_date_block_num].index]
+        train_y_df = self._y_df.loc[train_X_df.index]
+        return (train_X_df, train_y_df)
 
+    def get_train_val_data(self):
+        train_X_df, train_y_df = self.get_train_df()
+        val_X_df, val_y_df = self.get_val_data()
+        return (train_X_df, train_y_df, val_X_df, val_y_df)
+
+    def get_val_data(self):
+        val_date_block_num = self._train_end_date_block_num - self._skip_last_n_months
         val_X_df = self._sales_df[self._sales_df.date_block_num == val_date_block_num][['item_id',
                                                                                         'shop_id']].reset_index()
         val_X_df = val_X_df.groupby(['item_id', 'shop_id']).first().reset_index().set_index('index')
@@ -50,4 +58,4 @@ class ModelValidator:
         val_X_df = val_X_df.sort_index()
         val_y_df = val_y_df.loc[val_X_df.index]
 
-        return (train_df, y_df, val_X_df, val_y_df)
+        return (val_X_df, val_y_df)
