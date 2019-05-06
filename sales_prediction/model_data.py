@@ -28,7 +28,7 @@ class ModelData:
 
         # Retain common rows
         X_df = X_df.join(y_df[[]], how='inner')
-        y_df = y_df.join(X_df[[]], how='inner')['item_cnt_day']
+        y_df = y_df.join(X_df[[]], how='inner')['item_cnt_month']
         # Order
         y_df = y_df.loc[X_df.index]
         return (X_df, y_df)

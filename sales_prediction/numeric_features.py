@@ -74,11 +74,11 @@ def get_numeric_rolling_feature_df(sales_df, process_count=4):
     basic_preprocessing(sales_df)
 
     sales_df['log_p'] = np.log(sales_df['item_price'])
+    quantiles = [0.25, 0.5, 0.75, 0.9]
+    price_1M_features_args = [(ndays_features, (sales_df, 'log_p', 30, quantiles), {})]
 
-    price_1M_features_args = ndays_features(sales_df, 'log_p', 30)
-
-    sales_1M_features_args = ndays_features(sales_df, 'item_cnt_day', 30)
-    sales_3M_features_args = ndays_features(sales_df, 'item_cnt_day', 90)
+    sales_1M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 30, quantiles), {})]
+    sales_3M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 90, quantiles), {})]
 
     args = price_1M_features_args + sales_1M_features_args + sales_3M_features_args
 
