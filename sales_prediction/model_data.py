@@ -1,6 +1,7 @@
 import gc
 import pandas as pd
 from datetime import timedelta, datetime
+
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
 from text_features import TextFeatures
@@ -64,15 +65,13 @@ class ModelData:
 
         # Ensure that item_ids missing in train are replaced by nearby ids.
         self._id_features.set_alternate_ids(self._item_name_en, sales_test_df)
-        assert self._id_features._item_id_alternate[83] != 83
-        assert self._id_features._item_id_alternate[173] != 173
+        # assert self._id_features._item_id_alternate[83] != 83
+        # assert self._id_features._item_id_alternate[173] != 173
 
         sales_test_df['orig_item_id'] = sales_test_df['item_id']
 
         sales_test_df['item_id'] = sales_test_df['item_id'].map(
             self._id_features.transform_item_id_to_alternate_id_dict())
-
-        assert sales_test_df[sales_test_df.item_id.isin([83, 173])].empty
 
         sales_test_df['date'] = '01.11.2015'
         sales_test_df['date_block_num'] = self._sales_df['date_block_num'].max() + 1
@@ -98,7 +97,7 @@ class ModelData:
         sales_test_df = sales_test_df.set_index('index')
         date_preprocessing(sales_test_df)
 
-        recent_dt = test_datetime - timedelta(months=5)
+        recent_dt = test_datetime - timedelta(days=5 * 30)
         recent_sales_df = sales_train_df[(sales_train_df.date_f > recent_dt) & (sales_train_df.date_f < test_datetime)]
         recent_sales_df = recent_sales_df.drop('shop_item_group', axis=1)
 

@@ -37,7 +37,7 @@ class ModelValidator:
         item_ids = get_items_in_market(self._sales_df, val_date_block_num)
         shop_ids = get_shops_in_market(self._sales_df, val_date_block_num)
 
-        existing_ids = set(val_X_df.apply(tuple, axis=1).values)
+        existing_ids = set(val_X_df[['item_id', 'shop_id']].apply(tuple, axis=1).values)
 
         extra_ids = np.zeros((len(item_ids) * len(shop_ids) - len(existing_ids), 2))
         index = 0
@@ -55,7 +55,7 @@ class ModelValidator:
         val_X_df = pd.concat([val_X_df, other_val_X_df])
         val_y_df = pd.concat([val_y_df, other_val_y_df])
 
-        val_X_df = val_X_df.sort_index()
+        val_X_df = val_X_df.sort_index().astype(int)
         val_y_df = val_y_df.loc[val_X_df.index]
 
         return (val_X_df, val_y_df)

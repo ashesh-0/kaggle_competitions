@@ -23,7 +23,7 @@ def get_items_in_market(sales_df, block_num):
     last_trading_month = sales_df.groupby(['item_id'])['date_block_num'].max()
     first_trading_month = sales_df.groupby(['item_id'])['date_block_num'].min()
     it1 = set(last_trading_month[last_trading_month >= block_num].index.tolist())
-    it2 = set(first_trading_month[first_trading_month < block_num].index.tolist())
+    it2 = set(first_trading_month[first_trading_month <= block_num].index.tolist())
     output = list(it1.intersection(it2))
     output.sort()
     return output
@@ -36,7 +36,7 @@ def get_shops_in_market(sales_df, block_num):
     last_trading_month = sales_df.groupby(['shop_id'])['date_block_num'].max()
     first_trading_month = sales_df.groupby(['shop_id'])['date_block_num'].min()
     it1 = set(last_trading_month[last_trading_month >= block_num].index.tolist())
-    it2 = set(first_trading_month[first_trading_month < block_num].index.tolist())
+    it2 = set(first_trading_month[first_trading_month <= block_num].index.tolist())
     output = list(it1.intersection(it2))
     output.sort()
     return output
