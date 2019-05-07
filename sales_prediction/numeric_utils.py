@@ -1,5 +1,13 @@
 from multiprocessing import Pool
 import pandas as pd
+from datetime import datetime, date
+from typing import Union
+
+
+def get_date_block_num(dt: Union[date, datetime]):
+    m = dt.month
+    y = dt.year
+    return (y - 2013) * 12 + (m - 1)
 
 
 def run(fn_args):

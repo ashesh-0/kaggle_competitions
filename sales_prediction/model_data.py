@@ -1,7 +1,7 @@
 import gc
 import pandas as pd
 from datetime import timedelta, datetime
-
+from numeric_utils import get_date_block_num
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
 from text_features import TextFeatures
@@ -73,8 +73,8 @@ class ModelData:
         sales_test_df['item_id'] = sales_test_df['item_id'].map(
             self._id_features.transform_item_id_to_alternate_id_dict())
 
-        sales_test_df['date'] = '01.11.2015'
-        sales_test_df['date_block_num'] = self._sales_df['date_block_num'].max() + 1
+        sales_test_df['date'] = test_datetime.strftime('%d.%m.%Y')
+        sales_test_df['date_block_num'] = get_date_block_num(test_datetime)
 
         # Ideally, this should not be needed. However, we need to set price and item_cnt_day.
         test_item_ids = sales_test_df.item_id.unique().tolist()

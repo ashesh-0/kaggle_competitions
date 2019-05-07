@@ -31,7 +31,22 @@ class IdFeatures:
         self._category_id_to_cluster = {}
         self._shop_id_to_cluster = {}
 
+        # first time occuring features
+        self._item_fm_df = None
+        self._item_shop_fm_df = None
+
         self.fit()
+
+    def _fit_first_time_occuring_features(self):
+        temp_df = self._sales_df[['item_id', 'shop_id', 'date_block_num']]
+
+        self._item_fm_df = temp_df.groupby(['item_id'])['date_block_num'].min().to_frame('fm').reset_index()
+        self._item_shop_fm_df = temp_df.groupby(['item_id',
+                                                 'shop_id'])['date_block_num'].min().to_frame('fm').reset_index()
+
+        # temp_df = pd.merge(temp_df, item_min, how='left', on='item_id')
+        # temp_df['item_is_fm'] = temp_df['item_fm'] == temp_df['date_block_num']
+        # temp_df['item_oldness'] = temp_df['date_block_num'] - temp_df['item_fm']
 
     def _fit_cluster(self):
         if 'item_category_id' not in self._sales_df:
@@ -104,6 +119,30 @@ class IdFeatures:
         self._shop_id_old_to_new = self._fit('shop_id')
 
         self._fit_cluster()
+
+    def get_fm_features(self, df, item_id_and_shop_id=False):
+        """
+        Adds  first month features to df.
+        df must have ['item_id','shop_id','date_block_num'] columns
+        """
+        if self._item_fm_df is None:
+            self._fit_first_time_occuring_features()
+
+        merge_df = self._item_shop_fm_df if item_id_and_shop_id else self._item_fm_df
+        on_columns = ['item_id', 'shop_id'] if item_id_and_shop_id else ['item_id']
+        f_nm_prefix = '_'.join(on_columns) + '_'
+        df = pd.merge(df.reset_index(), merge_df, on=on_columns, how='left').set_index('index')
+
+        old_col = f_nm_prefix + 'oldness'
+        fm_col = f_nm_prefix + 'is_fm'
+
+        df[old_col] = df['date_block_num'] - df['fm']
+        # We will set oldness to 0 for which we don't have the data.
+        df[old_col] = df[old_col].fillna(0).astype(int)
+
+        df[fm_col] = df[old_col] == 0
+
+        return df.drop('fm', axis=1)
 
     def transform_item_id_to_alternate_id_dict(self):
         # some item ids donot exist in the training data. For them, we need to map them to appropriate items
