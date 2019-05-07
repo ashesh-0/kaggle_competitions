@@ -24,7 +24,7 @@ def test_fm_features_should_work_for_item_id(mock_fit):
             [36, 2, 1],
             [33, 1, 1],
         ],
-        columns=['date_block_num', 'item_id', 'shop_id'])
+        columns=['date_block_num', 'orig_item_id', 'shop_id'])
 
     idf = IdFeatures(sales_df, get_dummy_items())
     assert mock_fit.is_called
@@ -45,14 +45,14 @@ def test_fm_features_should_work_for_item_id(mock_fit):
         [6, False],
         [1, False],
     ]
-    expected_df = pd.DataFrame(expected_data, index=df.index, columns=['item_id_oldness', 'item_id_is_fm'])
+    expected_df = pd.DataFrame(expected_data, index=df.index, columns=['orig_item_id_oldness', 'orig_item_id_is_fm'])
     assert output_df[expected_df.columns].equals(expected_df)
     assert output_df[df.columns].equals(df)
 
 
 @patch('id_features.IdFeatures.fit', side_effect=dummy)
-def test_fm_features_should_work_for_item_id_shop_id(mock_fit):
-    item_id_and_shop_id = True
+def test_fm_features_should_work_for_orig_item_id_shop_id(mock_fit):
+    orig_item_id_and_shop_id = True
     sales_df = pd.DataFrame(
         [
             [32, 1, 1],
@@ -67,7 +67,7 @@ def test_fm_features_should_work_for_item_id_shop_id(mock_fit):
             [36, 2, 1],
             [33, 1, 1],
         ],
-        columns=['date_block_num', 'item_id', 'shop_id'])
+        columns=['date_block_num', 'orig_item_id', 'shop_id'])
 
     idf = IdFeatures(sales_df, get_dummy_items())
     assert mock_fit.is_called
@@ -75,7 +75,7 @@ def test_fm_features_should_work_for_item_id_shop_id(mock_fit):
     df = sales_df.copy()
     df.index += 10
 
-    output_df = idf.get_fm_features(df, item_id_and_shop_id=item_id_and_shop_id)
+    output_df = idf.get_fm_features(df, item_id_and_shop_id=orig_item_id_and_shop_id)
     expected_data = [
         [0, True],
         [0, True],
@@ -89,7 +89,7 @@ def test_fm_features_should_work_for_item_id_shop_id(mock_fit):
         [1, False],
     ]
     expected_df = pd.DataFrame(
-        expected_data, index=df.index, columns=['item_id_shop_id_oldness', 'item_id_shop_id_is_fm'])
+        expected_data, index=df.index, columns=['orig_item_id_shop_id_oldness', 'orig_item_id_shop_id_is_fm'])
 
     assert output_df[expected_df.columns].equals(expected_df)
     assert output_df[df.columns].equals(df)
@@ -111,7 +111,7 @@ def test_fm_features_should_work_for_unknowns(mock_fit):
             [36, 2, 1],
             [33, 1, 1],
         ],
-        columns=['date_block_num', 'item_id', 'shop_id'])
+        columns=['date_block_num', 'orig_item_id', 'shop_id'])
 
     idf = IdFeatures(sales_df, get_dummy_items())
     assert mock_fit.is_called
@@ -122,7 +122,7 @@ def test_fm_features_should_work_for_unknowns(mock_fit):
             [32, 4, 1],
             [33, 1, 2],
             [34, 2, 5],
-        ], columns=['date_block_num', 'item_id', 'shop_id'])
+        ], columns=['date_block_num', 'orig_item_id', 'shop_id'])
 
     output_df = idf.get_fm_features(df)
     expected_data = [
@@ -131,6 +131,6 @@ def test_fm_features_should_work_for_unknowns(mock_fit):
         [1, False],
         [4, False],
     ]
-    expected_df = pd.DataFrame(expected_data, index=df.index, columns=['item_id_oldness', 'item_id_is_fm'])
+    expected_df = pd.DataFrame(expected_data, index=df.index, columns=['orig_item_id_oldness', 'orig_item_id_is_fm'])
     assert output_df[expected_df.columns].equals(expected_df)
     assert output_df[df.columns].equals(df)

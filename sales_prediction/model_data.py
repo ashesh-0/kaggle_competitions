@@ -24,7 +24,10 @@ class ModelData:
         # self._text_features = TextFeatures(category_en, shop_name_en)
 
     def get_train_X_y(self):
-        X_df = self.preprocess_X(self._sales_df)
+        # orig_item_id is needed in id_features.
+        self._sales_df['orig_item_id'] = self._sales_df['item_id']
+        X_df = self.get_X(self._sales_df)
+
         y_df = get_y(self._sales_df).to_frame('item_cnt_month')
         print('Y fetched')
 
@@ -35,8 +38,13 @@ class ModelData:
         y_df = y_df.loc[X_df.index]
         return (X_df, y_df)
 
-    def preprocess_X(self, sales_df):
+    def get_X(self, sales_df):
         X_df = self._numeric_features.get(sales_df)
+
+        # # add first month related features for item_id
+        X_df = self._id_features.get_fm_features(X_df, item_id_and_shop_id=False)
+        # add first month related features for item_id and shop_id jointly
+        X_df = self._id_features.get_fm_features(X_df, item_id_and_shop_id=True)
 
         # Adding text features.
         # shop_name_features_df = X_df['shop_id'].apply(self._text_features.get_shop_feature_series)
@@ -68,13 +76,12 @@ class ModelData:
         # assert self._id_features._item_id_alternate[83] != 83
         # assert self._id_features._item_id_alternate[173] != 173
 
-        sales_test_df['orig_item_id'] = sales_test_df['item_id']
-
-        sales_test_df['item_id'] = sales_test_df['item_id'].map(
-            self._id_features.transform_item_id_to_alternate_id_dict())
-
         sales_test_df['date'] = test_datetime.strftime('%d.%m.%Y')
         sales_test_df['date_block_num'] = get_date_block_num(test_datetime)
+
+        sales_test_df['orig_item_id'] = sales_test_df['item_id']
+        sales_test_df['item_id'] = sales_test_df['item_id'].map(
+            self._id_features.transform_item_id_to_alternate_id_dict())
 
         # Ideally, this should not be needed. However, we need to set price and item_cnt_day.
         test_item_ids = sales_test_df.item_id.unique().tolist()
@@ -109,7 +116,7 @@ class ModelData:
         del recent_sales_df, valid_cnt, valid_prices, valid_dummy_values
 
         print('Preprocessing X about to be done now.')
-        X_df = self.preprocess_X(df)
+        X_df = self.get_X(df)
         X_df = X_df.loc[sales_test_df.index]
 
         del df, sales_test_df
