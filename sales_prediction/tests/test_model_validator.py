@@ -62,3 +62,37 @@ def test_model_validator_should_make_last_month_as_validation(m1, m2):
     val_ids = set(val_X[['item_id', 'shop_id']].astype('int').apply(tuple, axis=1).values)
 
     assert val_ids == expected_val_ids, "All possible pairs of shop_id, item_id not taken"
+
+
+@patch('model_validator.get_shops_in_market', side_effect=mock_get_shops)
+@patch('model_validator.get_items_in_market', side_effect=mock_get_items)
+def test_get_new_items_shops_info(m1, m2):
+    sales_df = pd.DataFrame(
+        [
+            [32, 1, 1],
+            [32, 1, 1],
+            [32, 1, 2],
+            [32, 2, 1],
+            [32, 2, 2],
+            [32, 2, 2],
+            [32, 1, 2],
+            # now the validation set.
+            [33, 2, 1],
+            [33, 3, 1],
+            [33, 1, 1],
+        ],
+        columns=['date_block_num', 'item_id', 'shop_id'])
+    sales_df.index += 10
+
+    # index = sales_df.index.tolist()
+    # np.random.shuffle(index)
+
+    X = pd.DataFrame(np.random.rand(sales_df.shape[0], 10), index=sales_df.index)
+    y = pd.Series(np.random.rand((X.shape[0])), index=X.index)
+
+    mv = ModelValidator(sales_df, X, y)
+    output = mv.get_new_items_shops_info()
+
+    assert all(np.array(output['new_items']) == np.array([3]))
+    assert len(output['new_shops']) == 0
+    assert set(output['new_item_shops']) == set([(3, 1)])
