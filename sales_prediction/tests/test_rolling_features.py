@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 from numeric_rolling_features import ndays_features
 from numeric_features import basic_preprocessing
@@ -28,7 +27,6 @@ def test_ndays_features_should_sum_one_month_multiple_item_shop():
         ['30.11.2013', 1, 1, 1.0],
         ['03.12.2013', 1, 1, 5.0],
     ]
-    fns = [np.sum, np.min, np.max]
     fn_names = ['sum', 'min', 'max', '1_q']
     output_data = [
         [1, 1, 1, 1],
