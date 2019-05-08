@@ -9,6 +9,8 @@ from text_features import TextFeatures
 
 
 class ModelData:
+    EPSILON = 1e-4
+
     def __init__(self, sales_df, items_df, category_en, shop_name_en, item_name_en, num_clusters=(4, 4)):
         self._sales_df = sales_df
         self._items_df = items_df
@@ -103,7 +105,7 @@ class ModelData:
         sales_test_df = pd.merge(sales_test_df, valid_dummy_values, on=['item_id', 'shop_id'], how='left')
 
         #NOTE: need something better. Valid_dummy_values does not cover all pairs of item_id and shop_id.
-        sales_test_df['item_cnt_day'] = sales_test_df['item_cnt_day'].fillna(sales_test_df['item_cnt_day'].mean())
+        sales_test_df['item_cnt_day'] = sales_test_df['item_cnt_day'].fillna(ModelData.EPSILON)
         sales_test_df['item_price'] = sales_test_df['item_price'].fillna(sales_test_df['item_price'].mean())
 
         sales_test_df = sales_test_df.set_index('index')
