@@ -15,7 +15,7 @@ def get_y(sales_df):
     # Also, shop_item_group value changes when either the shop or the item changes.
 
     rev_sales_df = sales_df[::-1]
-    y_df = pd.Series(index=rev_sales_df.index)
+    y_values = np.zeros(rev_sales_df.shape[0])
     inverted_data = rev_sales_df[['days', 'item_cnt_day', 'shop_item_group']]
     # inverted_index = rev_sales_df.index.tolist()
 
@@ -45,7 +45,9 @@ def get_y(sales_df):
             tail_index = inverted_data.index[tail_index_position]
             tail_day = inverted_data.at[tail_index, 'days']
 
-        y_df.at[head_index] = running_sum
+        y_values[head_index_position] = running_sum
+
+    y_df = pd.Series(y_values, index=rev_sales_df.index)
 
     return y_df.loc[sales_df.index]
 
@@ -134,13 +136,9 @@ class NumericFeatures:
         df.reset_index(inplace=True)
 
         df = self._add_features(df, ['shop_id', 'month'], self._monthly_features.shop_features)
-        # assert df[df.item_id.isin([83, 173])].empty
         df = self._add_features(df, ['item_category_id', 'month'], self._monthly_features.category_features)
-        # assert df[df.item_id.isin([83, 173])].empty
         df = self._add_features(df, ['month'], self._monthly_features.month_features)
-        # assert df[df.item_id.isin([83, 173])].empty
         df = self._add_features(df, ['item_id', 'month'], self._monthly_features.item_features)
-        # assert df[df.item_id.isin([83, 173])].empty
         print('Monthly numeric feature computation is complete')
 
         # Overall features

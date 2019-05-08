@@ -9,8 +9,9 @@ class IdFeatures:
     """
     We will change the id of item and shop so that it becomes easier for trees to split data.
     """
+    ABSENT_ITEM_ID_VALUE = -1000
 
-    def __init__(self, sales_df: pd.DataFrame, items_df: pd.DataFrame, num_clusters: Tuple[int, int] = (4, 4)):
+    def __init__(self, sales_df: pd.DataFrame, items_df: pd.DataFrame, num_clusters: Tuple[int, int] = (16, 16)):
 
         self._sales_df = sales_df
         self._items_df = items_df
@@ -54,12 +55,13 @@ class IdFeatures:
         else:
             merged_df = self._sales_df
 
-        df = merged_df.groupby(['shop_id', 'item_category_id', 'month'])['item_cnt_day'].sum().reset_index()
+        df = merged_df.groupby(['shop_id', 'item_category_id', 'date_block_num'])['item_cnt_day'].sum().reset_index()
         df = df.groupby(['shop_id', 'item_category_id'])['item_cnt_day'].mean()
         df[df > 20] = 20
 
-        data_df = df.unstack()
-        data = data_df.fillna(data_df.mean()).values
+        # for categories which does not exist for a shop, its sum has to be 0.
+        data_df = df.unstack().fillna(0)
+        data = data_df.values
 
         model = SpectralBiclustering(n_clusters=self._num_clusters, method='log', random_state=0)
         model.fit(data)
@@ -116,6 +118,10 @@ class IdFeatures:
 
     def fit(self):
         self._item_id_old_to_new = self._fit('item_id')
+        for item_id in self._items_df.item_id.unique():
+            if item_id not in self._item_id_old_to_new:
+                self._item_id_old_to_new[item_id] = IdFeatures.ABSENT_ITEM_ID_VALUE
+
         self._shop_id_old_to_new = self._fit('shop_id')
 
         self._fit_cluster()
