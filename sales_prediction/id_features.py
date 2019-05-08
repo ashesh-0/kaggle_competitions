@@ -38,11 +38,15 @@ class IdFeatures:
         self.fit()
 
     def _fit_first_time_occuring_features(self):
+        assert 'orig_item_id' in self._sales_df
+
         temp_df = self._sales_df[['orig_item_id', 'shop_id', 'date_block_num']]
 
         self._item_fm_df = temp_df.groupby(['orig_item_id'])['date_block_num'].min().to_frame('fm').reset_index()
         self._item_shop_fm_df = temp_df.groupby(['orig_item_id',
                                                  'shop_id'])['date_block_num'].min().to_frame('fm').reset_index()
+        assert 'orig_item_id' in self._item_fm_df
+        assert 'orig_item_id' in self._item_shop_fm_df
 
     def _fit_cluster(self):
         if 'item_category_id' not in self._sales_df:
@@ -121,6 +125,7 @@ class IdFeatures:
         Adds  first month features to df.
         df must have ['orig_item_id','shop_id','date_block_num'] columns
         """
+        assert 'orig_item_id' in df
         if self._item_fm_df is None:
             self._fit_first_time_occuring_features()
 
