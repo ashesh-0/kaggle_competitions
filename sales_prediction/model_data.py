@@ -62,20 +62,18 @@ class ModelData:
 
         X_df['shop_cluster'] = X_df['shop_id'].map(self._id_features.transform_shop_id_to_cluster_dict()).astype('int8')
 
-        X_df['item_id'] = X_df['item_id'].map(self._id_features.transform_item_id_dict()).astype('int32')
-        X_df['shop_id'] = X_df['shop_id'].map(self._id_features.transform_shop_id_dict()).astype('int8')
+        X_df['item_id_sorted'] = X_df['item_id'].map(self._id_features.transform_item_id_dict()).astype('int32')
+        X_df['shop_id_sorted'] = X_df['shop_id'].map(self._id_features.transform_shop_id_dict()).astype('int8')
 
         print('Id features added')
         return X_df
 
-    def get_test_X(self, sales_test_df, test_datetime: datetime):
+    def get_test_X(self, sales_test_df, test_datetime: datetime, transform_missing_item_ids=True):
         gc.collect()
         # adding items_category_id to dataframe.
         item_to_cat_dict = self._items_df.set_index('item_id')['item_category_id'].to_dict()
         sales_test_df['item_category_id'] = sales_test_df.item_id.map(item_to_cat_dict)
 
-        # Ensure that item_ids missing in train are replaced by nearby ids.
-        self._id_features.set_alternate_ids(self._item_name_en, sales_test_df)
         # assert self._id_features._item_id_alternate[83] != 83
         # assert self._id_features._item_id_alternate[173] != 173
 
@@ -83,8 +81,12 @@ class ModelData:
         sales_test_df['date_block_num'] = get_date_block_num(test_datetime)
 
         sales_test_df['orig_item_id'] = sales_test_df['item_id']
-        sales_test_df['item_id'] = sales_test_df['item_id'].map(
-            self._id_features.transform_item_id_to_alternate_id_dict())
+
+        if transform_missing_item_ids:
+            # Ensure that item_ids missing in train are replaced by nearby ids.
+            self._id_features.set_alternate_ids(self._item_name_en, sales_test_df)
+            sales_test_df['item_id'] = sales_test_df['item_id'].map(
+                self._id_features.transform_item_id_to_alternate_id_dict())
 
         # Ideally, this should not be needed. However, we need to set price and item_cnt_day.
         test_item_ids = sales_test_df.item_id.unique().tolist()
