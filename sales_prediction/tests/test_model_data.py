@@ -11,7 +11,7 @@ def compute_sequentially(args, **kwargs):
     def run(fn_args):
         fn, args, name = fn_args
         print('Starting', args)
-        return fn(*args).to_frame(name)
+        return fn(*args)
 
     output = []
     for arg in args:
@@ -20,9 +20,7 @@ def compute_sequentially(args, **kwargs):
 
 
 @patch('numeric_features.compute_concurrently', side_effect=compute_sequentially)
-@patch('numeric_monthly_features.compute_concurrently', side_effect=compute_sequentially)
-@patch('numeric_overall_features.compute_concurrently', side_effect=compute_sequentially)
-def test_get_X_y_runs(mock_fn1, mock_fn2, mock_fn3):
+def test_get_X_y_runs(mock_fn1):
     sales_df = get_dummy_sales()
     items_df = get_dummy_items()
     category_en = get_dummy_category().item_category_name.values.tolist()
