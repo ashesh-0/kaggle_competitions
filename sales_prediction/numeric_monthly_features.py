@@ -1,7 +1,8 @@
 import pandas as pd
+import numpy as np
 
 
-def monthly_features(sales_df, items_df):
+def monthly_features(sales_df):
     # monthly item sales
     monthly_item_sales_df = sales_df.groupby(['item_category_id', 'month', 'item_id',
                                               'shop_id'])['item_cnt_day'].sum().reset_index()
@@ -18,7 +19,7 @@ def monthly_features(sales_df, items_df):
         (item_sales_grp, 'item'),
         (month_sales_grp, 'month'),
     ]:
-        fmt = 'Monthly_{}'.format(name) + '_{}'
+        fmt = 'Monthly_{}'.format(name) + '_sales_cnt_{}'
         df1 = groupby_obj.mean().to_frame(fmt.format('mean'))
         df2 = groupby_obj.std().to_frame(fmt.format('std')).fillna(0)
         df3 = groupby_obj.min().to_frame(fmt.format('min'))
@@ -33,6 +34,7 @@ def monthly_features(sales_df, items_df):
         # there could be some month for a particular item_id/shop_id/category_id which does not have any data point.
         # It means not a single item was bought and so item_cnt_day will be 0. So all features computed here will be 0.
         if isinstance(df.index, pd.MultiIndex):
+            assert np.sum(df.isna().values) == 0
             df = df.unstack().fillna(0).stack().sort_index()
 
         output[name] = df
@@ -41,10 +43,10 @@ def monthly_features(sales_df, items_df):
 
 
 class MonthlyFeatures:
-    def __init__(self, sales_df, items_df):
+    def __init__(self, sales_df):
+        assert 'item_category_id' in sales_df, 'item_category_id not found in sales_df'
         self._sales_df = sales_df
-        self._items_df = items_df
-        self._monthly_features_dict = monthly_features(sales_df, items_df)
+        self._monthly_features_dict = monthly_features(sales_df)
 
     def item_features(self, item_id_month: pd.Series):
         item_id = item_id_month.iloc[0]

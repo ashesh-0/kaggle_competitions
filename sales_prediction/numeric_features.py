@@ -102,7 +102,7 @@ class NumericFeatures:
 
         basic_preprocessing(sales_df)
 
-        self._monthly_features = MonthlyFeatures(self._sales_df, self._items_df)
+        self._monthly_features = MonthlyFeatures(self._sales_df)
         self._overall_features = OverallFeatures(self._sales_df, self._items_df)
 
     def _add_features(self, output_df: pd.DataFrame, feature_id_list: List[str], function):
