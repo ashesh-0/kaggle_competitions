@@ -77,12 +77,17 @@ def get_numeric_rolling_feature_df(sales_df, process_count=4):
 
     sales_df['log_p'] = np.log(sales_df['item_price'])
     quantiles = [0.25, 0.5, 0.75, 0.9]
-    price_1M_features_args = [(ndays_features, (sales_df, 'log_p', 30, quantiles), {})]
+    # price_1M_features_args = [(ndays_features, (sales_df, 'log_p', 30, quantiles), {})]
 
+    sales_half_M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 15, quantiles), {})]
     sales_1M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 30, quantiles), {})]
+    sales_1_half_M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 45, quantiles), {})]
+    sales_2M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 60, quantiles), {})]
     sales_3M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 90, quantiles), {})]
 
-    args = price_1M_features_args + sales_1M_features_args + sales_3M_features_args
+    args = sales_half_M_features_args + sales_1M_features_args + sales_1_half_M_features_args
+    args += sales_2M_features_args
+    args += sales_3M_features_args
 
     df = compute_concurrently(args, process_count=process_count).astype('float32')
 
@@ -131,6 +136,11 @@ class NumericFeatures:
         # assert sales_df[sales_df.item_id.isin([83, 173])].empty
 
         df = get_numeric_rolling_feature_df(sales_df)
+
+        df['price_category'] = np.log(sales_df['item_price']).astype(int).fillna(0)
+        df['price_sub_category'] = (np.log(sales_df['item_price']) - df['price_category']).fillna(0)
+        df['log_dollar_value'] = np.log(sales_df['item_price'] * sales_df['item_cnt_day']).fillna(0)
+
         # assert df[df.item_id.isin([83, 173])].empty
         print('Numeric numeric rolling feature computation is complete.')
         df.reset_index(inplace=True)
