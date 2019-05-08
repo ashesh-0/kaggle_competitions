@@ -1,6 +1,7 @@
 import gc
 import pandas as pd
 from datetime import timedelta, datetime
+
 from numeric_utils import get_date_block_num
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
@@ -20,14 +21,14 @@ class ModelData:
         self._sales_df['item_category_id'] = self._sales_df.item_id.map(item_to_cat_dict)
 
         self._numeric_features = NumericFeatures(self._sales_df, self._items_df)
+
+        # orig_item_id is needed in id_features.
+        self._sales_df['orig_item_id'] = self._sales_df['item_id']
         self._id_features = IdFeatures(self._sales_df, self._items_df, num_clusters=num_clusters)
         # self._text_features = TextFeatures(category_en, shop_name_en)
 
     def get_train_X_y(self):
-        # orig_item_id is needed in id_features.
-        self._sales_df['orig_item_id'] = self._sales_df['item_id']
         X_df = self.get_X(self._sales_df)
-
         y_df = get_y(self._sales_df).to_frame('item_cnt_month')
         print('Y fetched')
 
@@ -41,6 +42,8 @@ class ModelData:
     def get_X(self, sales_df):
         X_df = self._numeric_features.get(sales_df)
 
+        X_df['orig_item_id'] = self._sales_df['orig_item_id']
+        X_df['date_block_num'] = self._sales_df['date_block_num']
         # # add first month related features for item_id
         X_df = self._id_features.get_fm_features(X_df, item_id_and_shop_id=False)
         # add first month related features for item_id and shop_id jointly
