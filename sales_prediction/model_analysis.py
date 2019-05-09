@@ -26,7 +26,7 @@ class NewIdAnalysisValidationData:
 
         self._train_sales_df = sales_df.loc[train_X.index]
         val_date_block_num = self._train_sales_df.date_block_num.max() + 1
-        print('Validation started on ', get_datetime(val_date_block_num))
+        print('Validation started on ', get_datetime(val_date_block_num).date())
 
         self._val_sales_df = sales_df[sales_df.date_block_num == val_date_block_num]
         val_indices = set(val_X.index.tolist())
@@ -112,7 +112,7 @@ def get_Xy_df_with_ids(model, val_X_df, val_y_df, sales_df, items_df: pd.DataFra
     """
     train_sales_df = sales_df.loc[train_X_df.index]
     val_date_block_num = train_sales_df.date_block_num.max() + 1
-    print('Validation started on ', get_datetime(val_date_block_num))
+    print('Validation started on ', get_datetime(val_date_block_num).date())
 
     val_sales_df = sales_df[sales_df.date_block_num == val_date_block_num]
     val_indices = set(val_X_df.index.tolist())
