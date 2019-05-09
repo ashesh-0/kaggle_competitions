@@ -4,6 +4,12 @@ from datetime import datetime, date
 from typing import Union
 
 
+def get_datetime(date_block_num):
+    year = 2013 + date_block_num // 12
+    month = date_block_num % 12 + 1
+    return datetime(year, month, 1)
+
+
 def get_date_block_num(dt: Union[date, datetime]):
     m = dt.month
     y = dt.year
