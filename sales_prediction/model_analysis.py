@@ -9,6 +9,7 @@ import numpy as np
 
 
 def get_metrics(model, input_df, y_df):
+    y_df = y_df.loc[input_df.index]
     pred_train = model.predict(input_df)
     pred_train[pred_train > 20] = 20
     mse = mean_squared_error(y_df.values, pred_train)
@@ -105,8 +106,8 @@ def view_performance_on_new_ids(model, vdata_obj):
 
 def get_Xy_df_with_ids(model, val_X_df, val_y_df, sales_df, items_df: pd.DataFrame, train_X_df: pd.DataFrame):
     """
-    Returns a dataframe which has item_id, shop_id, item_category_id, prediction and actual with index being same as of
-    sales_df.
+    Returns a superset of val_X_df dataframe which has item_id, shop_id, item_category_id, prediction and actual with
+    index being same as of sales_df.
     It also returns an index which is of those entries which belonged to the train data (other entries are generated).
     """
     train_sales_df = sales_df.loc[train_X_df.index]
@@ -121,13 +122,17 @@ def get_Xy_df_with_ids(model, val_X_df, val_y_df, sales_df, items_df: pd.DataFra
     assert val_sales_indices.issubset(val_indices)
     assert all(val_y_df[list(val_indices - val_sales_indices)].unique() == np.array([0]))
 
-    val_X_df = pd.merge(
-        val_X_df[['item_id', 'shop_id']].reset_index(), items_df, on='item_id', how='left').set_index('index')
-
     prediction_df = pd.Series(model.predict(val_X_df.values), index=val_X_df.index)
+
+    if 'item_category_id' in val_X_df:
+        print('Dropping category id and reassigning original category id.')
+        val_X_df = val_X_df.drop('item_category_id', axis=1)
+
+    val_X_df = pd.merge(
+        val_X_df.reset_index(), items_df[['item_id', 'item_category_id']], on='item_id', how='left').set_index('index')
     val_X_df['prediction'] = prediction_df
-    val_X_df['actual'] = val_y_df
-    val_X_df['square_error'] = (val_X_df['actual'] - val_X_df['prediction']).pow(2)
+    val_X_df['target'] = val_y_df
+    val_X_df['square_error'] = (val_X_df['target'] - val_X_df['prediction']).pow(2)
     return (val_X_df, val_sales_df.index)
 
 
