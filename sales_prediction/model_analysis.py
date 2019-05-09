@@ -22,13 +22,18 @@ class NewIdAnalysisValidationData:
         self._val_X = val_X
         self._val_y = val_y
         self._train_X = train_X
-        self._sales_df = sales_df
+        self._sales_df = sales_df.sort_values(['shop_id', 'item_id', 'date_f'])
 
         self._train_sales_df = sales_df.loc[train_X.index]
         val_date_block_num = self._train_sales_df.date_block_num.max() + 1
         print('Validation started on ', get_datetime(val_date_block_num).date())
 
         self._val_sales_df = sales_df[sales_df.date_block_num == val_date_block_num]
+        self._val_sales_df = self._val_sales_df.reset_index()
+        self._val_sales_df = self._val_sales_df.groupby(['item_id', 'shop_id']).first().reset_index().set_index('index')
+        self._val_sales_df['item_id'] = self._val_sales_df['item_id'].astype(np.int32)
+        self._val_sales_df['shop_id'] = self._val_sales_df['shop_id'].astype(np.int16)
+
         val_indices = set(val_X.index.tolist())
         val_sales_indices = set(self._val_sales_df.index.tolist())
 
@@ -63,29 +68,34 @@ class NewIdAnalysisValidationData:
 
         return validation_tuples_df.isin(new_tuples)
 
-    def get_new_item_based_validation_data(self, new_ids=True):
-        return self._filter_val_data('item_id', new_ids)
+    def get_new_item_based_validation_data(self):
+        return self._filter_val_data('item_id')
 
-    def get_new_shop_based_validation_data(self, new_ids=True):
-        return self._filter_val_data('shop_id', new_ids)
+    def get_new_shop_based_validation_data(self):
+        return self._filter_val_data('shop_id')
 
-    def get_new_shop_item_based_validation_data(self, new_ids=True):
-        return self._filter_val_data('shop_id_item_id', new_ids)
+    def get_new_shop_item_based_validation_data(self):
+        return self._filter_val_data('shop_id_item_id')
 
-    def _filter_val_data(self, name, new_ids):
+    def _filter_val_data(self, name):
         if name == 'item_id':
-            index_filter = self._new_items_val_data_index_filter()
+            new_index_filter = self._new_items_val_data_index_filter()
         elif name == 'shop_id':
-            index_filter = self._new_shops_val_data_index_filter()
+            new_index_filter = self._new_shops_val_data_index_filter()
         elif name == 'shop_id_item_id':
-            index_filter = self._new_shop_item_val_data_index_filter()
+            new_index_filter = self._new_shop_item_val_data_index_filter()
         else:
             raise Exception('Incorrect name:' + name)
 
-        if new_ids is False:
-            index_filter = ~index_filter
+        old_index_filter = ~new_index_filter
 
-        return (self._val_X[index_filter], self._val_y[index_filter], 100 * index_filter.sum() / self._val_X.shape[0])
+        new = (self._val_X[new_index_filter], self._val_y[new_index_filter],
+               100 * new_index_filter.sum() / self._val_X.shape[0])
+
+        old = (self._val_X[old_index_filter], self._val_y[old_index_filter],
+               100 * old_index_filter.sum() / self._val_X.shape[0])
+
+        return {'NEW': new, 'OLD': old}
 
 
 def view_performance_on_new_ids(model, vdata_obj):
@@ -94,14 +104,25 @@ def view_performance_on_new_ids(model, vdata_obj):
         'shop': vdata_obj.get_new_shop_based_validation_data,
         'shop_item': vdata_obj.get_new_shop_item_based_validation_data,
     }
+    output = {}
     for name, fn in views.items():
-        val_X_df, val_y_df, percent = fn(new_ids=True)
-        m = get_metrics(model, val_X_df, val_y_df)
-        print('[NEW]--[{}] Percent:{:.2f}% \tRMSE:{} \tR2:{}'.format(name, percent, m['rmse'], m['r2']))
+        output[name] = {}
+        data = fn()
 
-        val_X_df, val_y_df, percent = fn(new_ids=False)
-        m = get_metrics(model, val_X_df, val_y_df)
-        print('[OLD]--[{}] Percent:{:.2f}% \tRMSE:{} \tR2:{}'.format(name, percent, m['rmse'], m['r2']))
+        val_X_df1, val_y_df1, percent1 = data['NEW']
+        m1 = get_metrics(model, val_X_df1, val_y_df1)
+        output[name]['NEW'] = m1
+
+        val_X_df0, val_y_df0, percent0 = data['OLD']
+        m0 = get_metrics(model, val_X_df0, val_y_df0)
+        output[name]['OLD'] = m0
+
+    for name, metric_dict in output.items():
+        m1 = metric_dict['NEW']
+        m0 = metric_dict['OLD']
+        print('[NEW]--[{}] Percent:{:.2f}% \tRMSE:{} \tR2:{}'.format(name, percent1, m1['rmse'], m1['r2']))
+        print('[OLD]--[{}] Percent:{:.2f}% \tRMSE:{} \tR2:{}'.format(name, percent0, m0['rmse'], m0['r2']))
+        print('')
 
 
 def get_Xy_df_with_ids(model, val_X_df, val_y_df, sales_df, items_df: pd.DataFrame, train_X_df: pd.DataFrame):

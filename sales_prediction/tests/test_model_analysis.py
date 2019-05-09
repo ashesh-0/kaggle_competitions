@@ -1,3 +1,4 @@
+from datetime import datetime
 from model_analysis import NewIdAnalysisValidationData, get_Xy_df_with_ids
 from .test_utils import get_dummy_items
 import pandas as pd
@@ -30,22 +31,29 @@ def dummy_sales():
         ['03.01.2014', 12, 0, 1, 100, 1.0],
         ['06.01.2014', 12, 1, 1, 100, 1.0],
     ]
-    return pd.DataFrame(data, columns=columns)
+    sales_df = pd.DataFrame(data, columns=columns)
+    sales_df['date_f'] = pd.to_datetime(sales_df.date, format='%d.%m.%Y')
+    sales_df.sort_values(['shop_id', 'item_id', 'date_f'], inplace=True)
+    sales_df['item_id'] = sales_df['item_id'].astype(np.int32)
+    sales_df['shop_id'] = sales_df['shop_id'].astype(np.int16)
+    return sales_df
 
 
 def initialize():
     sales_df = dummy_sales()
     y_df = pd.Series(np.random.rand(sales_df.shape[0]), index=sales_df.index)
-    train_X = sales_df.iloc[:3].copy()
+    train_X = sales_df.loc[[0, 1, 2]].copy()
 
-    val_X = sales_df.iloc[3:-3].copy()
+    val_X = sales_df.loc[list(range(3, 8))].copy()
     val_y = y_df.loc[val_X.index]
 
     # add missing tuple (1,2)
-    new_index = val_X.index[-1] + 1
-    val_X.loc[new_index] = ['01.12.2013', 11, 1, 2, 1000, 0.001]
+    new_index = val_X.index.max() + 1
+    val_X.loc[new_index] = ['01.12.2013', 11, 1, 2, 1000, 0.001, datetime(2013, 12, 1)]
     val_y.loc[new_index] = 0
 
+    val_X['item_id'] = val_X['item_id'].astype(np.int32)
+    val_X['shop_id'] = sales_df['shop_id'].astype(np.int16)
     vdata = NewIdAnalysisValidationData(val_X, val_y, train_X, sales_df)
     return (vdata, val_X, val_y, train_X, sales_df)
 
@@ -58,15 +66,15 @@ class TestNewIdAnalysisValidationData:
 
     def test_get_new_item_based_validation_data(self):
         (vdata, val_X, val_y, train_X, sales_df) = initialize()
+        data = vdata.get_new_item_based_validation_data()
 
-        f1_val_X, f1_val_y, percent1 = vdata.get_new_item_based_validation_data(new_ids=True)
+        f1_val_X, f1_val_y, percent1 = data['NEW']
         expected_X = val_X[val_X.item_id == 2]
-
         assert f1_val_X.equals(expected_X)
         assert f1_val_y.equals(val_y.loc[expected_X.index])
         assert percent1 == 100 * 2 / 6
 
-        f0_val_X, f0_val_y, percent0 = vdata.get_new_item_based_validation_data(new_ids=False)
+        f0_val_X, f0_val_y, percent0 = data['OLD']
         expected_X = val_X[val_X.item_id != 2]
         assert f0_val_X.equals(expected_X)
         assert f0_val_y.equals(val_y.loc[expected_X.index])
@@ -78,13 +86,14 @@ class TestNewIdAnalysisValidationData:
     def test_get_new_shop_based_validation_data(self):
         (vdata, val_X, val_y, train_X, sales_df) = initialize()
 
-        f1_val_X, f1_val_y, percent1 = vdata.get_new_shop_based_validation_data(new_ids=True)
+        data = vdata.get_new_shop_based_validation_data()
+        f1_val_X, f1_val_y, percent1 = data['NEW']
 
         assert f1_val_X.empty
         assert f1_val_y.empty
         assert percent1 == 0
 
-        f0_val_X, f0_val_y, percent0 = vdata.get_new_shop_based_validation_data(new_ids=False)
+        f0_val_X, f0_val_y, percent0 = data['OLD']
         expected_X = val_X
         assert f0_val_X.equals(expected_X)
         assert f0_val_y.equals(val_y.loc[expected_X.index])
@@ -92,8 +101,8 @@ class TestNewIdAnalysisValidationData:
 
     def test_get_new_shop_item_based_validation_data(self):
         (vdata, val_X, val_y, train_X, sales_df) = initialize()
-
-        f1_val_X, f1_val_y, percent1 = vdata.get_new_shop_item_based_validation_data(new_ids=True)
+        data = vdata.get_new_shop_item_based_validation_data()
+        f1_val_X, f1_val_y, percent1 = data['NEW']
         expected_filter = (val_X.item_id == 2) | ((val_X.item_id == 0) & (val_X.shop_id == 1))
         expected_X = val_X[expected_filter]
 
@@ -101,7 +110,7 @@ class TestNewIdAnalysisValidationData:
         assert f1_val_y.equals(val_y.loc[expected_X.index])
         assert percent1 == 100 * 3 / 6
 
-        f0_val_X, f0_val_y, percent0 = vdata.get_new_shop_item_based_validation_data(new_ids=False)
+        f0_val_X, f0_val_y, percent0 = data['OLD']
         expected_X = val_X[~expected_filter]
         assert f0_val_X.equals(expected_X)
         assert f0_val_y.equals(val_y.loc[expected_X.index])
