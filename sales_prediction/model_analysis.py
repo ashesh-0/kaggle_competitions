@@ -3,7 +3,7 @@ Contains a couple of functions which will help in analysis of performance of the
 """
 
 import pandas as pd
-from numeric_utils import get_datetime
+# from numeric_utils import get_datetime
 from sklearn.metrics import mean_squared_error, r2_score
 import numpy as np
 
@@ -109,19 +109,21 @@ def view_performance_on_new_ids(model, vdata_obj):
         output[name] = {}
         data = fn()
 
-        val_X_df1, val_y_df1, percent1 = data['NEW']
-        m1 = get_metrics(model, val_X_df1, val_y_df1)
-        output[name]['NEW'] = m1
+        val_X_df, val_y_df, percent = data['NEW']
+        m = get_metrics(model, val_X_df, val_y_df)
+        m['percent'] = percent
+        output[name]['NEW'] = m
 
-        val_X_df0, val_y_df0, percent0 = data['OLD']
-        m0 = get_metrics(model, val_X_df0, val_y_df0)
-        output[name]['OLD'] = m0
+        val_X_df, val_y_df, percent = data['OLD']
+        m = get_metrics(model, val_X_df, val_y_df)
+        m['percent'] = percent
+        output[name]['OLD'] = m
 
     for name, metric_dict in output.items():
         m1 = metric_dict['NEW']
         m0 = metric_dict['OLD']
-        print('[NEW]--[{}] Percent:{:.2f}% \tRMSE:{} \tR2:{}'.format(name, percent1, m1['rmse'], m1['r2']))
-        print('[OLD]--[{}] Percent:{:.2f}% \tRMSE:{} \tR2:{}'.format(name, percent0, m0['rmse'], m0['r2']))
+        print('[NEW]--[{}] Percent:{:.2f}% \tRMSE:{} \tR2:{}'.format(name, m1['percent'], m1['rmse'], m1['r2']))
+        print('[OLD]--[{}] Percent:{:.2f}% \tRMSE:{} \tR2:{}'.format(name, m0['percent'], m0['rmse'], m0['r2']))
         print('')
 
 
@@ -131,11 +133,23 @@ def get_Xy_df_with_ids(model, val_X_df, val_y_df, sales_df, items_df: pd.DataFra
     index being same as of sales_df.
     It also returns an index which is of those entries which belonged to the train data (other entries are generated).
     """
+    sales_df = sales_df.sort_values(['shop_id', 'item_id', 'date_f'])
+
     train_sales_df = sales_df.loc[train_X_df.index]
     val_date_block_num = train_sales_df.date_block_num.max() + 1
     print('Validation started on ', get_datetime(val_date_block_num).date())
 
     val_sales_df = sales_df[sales_df.date_block_num == val_date_block_num]
+    val_sales_df = val_sales_df.reset_index()
+    val_sales_df = val_sales_df.groupby(['item_id', 'shop_id']).first().reset_index().set_index('index')
+    val_sales_df['item_id'] = val_sales_df['item_id'].astype(np.int32)
+    val_sales_df['shop_id'] = val_sales_df['shop_id'].astype(np.int16)
+
+    # train_sales_df = sales_df.loc[train_X_df.index]
+    # val_date_block_num = train_sales_df.date_block_num.max() + 1
+    # print('Validation started on ', get_datetime(val_date_block_num).date())
+
+    # val_sales_df = sales_df[sales_df.date_block_num == val_date_block_num]
     val_indices = set(val_X_df.index.tolist())
     val_sales_indices = set(val_sales_df.index.tolist())
 

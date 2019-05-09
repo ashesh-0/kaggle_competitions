@@ -43,9 +43,11 @@ class ModelData:
 
     def get_X(self, sales_df):
         X_df = self._numeric_features.get(sales_df)
+        assert X_df.index.equals(sales_df.index)
 
-        X_df['orig_item_id'] = self._sales_df['orig_item_id']
-        X_df['date_block_num'] = self._sales_df['date_block_num']
+        X_df['orig_item_id'] = sales_df['orig_item_id']
+        X_df['date_block_num'] = sales_df['date_block_num']
+
         # # add first month related features for item_id
         X_df = self._id_features.get_fm_features(X_df, item_id_and_shop_id=False)
         # add first month related features for item_id and shop_id jointly
@@ -81,9 +83,7 @@ class ModelData:
 
         sales_test_df['date'] = test_datetime.strftime('%d.%m.%Y')
         sales_test_df['date_block_num'] = get_date_block_num(test_datetime)
-
         sales_test_df['orig_item_id'] = sales_test_df['item_id']
-
         if transform_missing_item_ids:
             # Ensure that item_ids missing in train are replaced by nearby ids.
             self._id_features.set_alternate_ids(self._item_name_en, sales_test_df)
@@ -109,6 +109,7 @@ class ModelData:
         sales_test_df['item_price'] = sales_test_df['item_price'].fillna(sales_test_df['item_price'].mean())
 
         sales_test_df = sales_test_df.set_index('index')
+
         date_preprocessing(sales_test_df)
 
         recent_dt = test_datetime - timedelta(days=5 * 30)
@@ -124,6 +125,7 @@ class ModelData:
 
         print('Preprocessing X about to be done now.')
         X_df = self.get_X(df)
+
         X_df = X_df.loc[sales_test_df.index]
 
         del df, sales_test_df
