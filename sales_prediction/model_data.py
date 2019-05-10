@@ -138,7 +138,7 @@ class ModelData:
 
         assert df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
 
-        del recent_sales_df, valid_cnt, valid_prices, valid_dummy_values
+        del recent_sales_df, valid_prices
 
         print('Preprocessing X about to be done now.')
         X_df = self.get_X(df)
