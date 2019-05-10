@@ -38,6 +38,7 @@ def monthly_features(sales_df):
             df = df.unstack().fillna(0).stack().sort_index()
 
         output[name] = df
+        output[name + '_default'] = pd.Series(np.zeros(df.shape[1]), index=df.columns)
 
     return output
 
@@ -51,18 +52,34 @@ class MonthlyFeatures:
     def item_features(self, item_id_month: pd.Series):
         item_id = item_id_month.iloc[0]
         month = item_id_month.iloc[1]
-        return self._monthly_features_dict['item'].loc[item_id, month]
+
+        if (item_id, month) in self._monthly_features_dict['item'].index:
+            return self._monthly_features_dict['item'].loc[item_id, month]
+
+        return self._monthly_features_dict['item_default']
 
     def shop_features(self, shop_id_month: pd.Series):
         shop_id = shop_id_month.iloc[0]
         month = shop_id_month.iloc[1]
-        return self._monthly_features_dict['shop'].loc[shop_id, month]
+
+        if (shop_id, month) in self._monthly_features_dict['shop'].index:
+            return self._monthly_features_dict['shop'].loc[shop_id, month]
+
+        return self._monthly_features_dict['shop_default']
 
     def category_features(self, category_id_month: pd.Series):
         category_id = category_id_month.iloc[0]
         month = category_id_month.iloc[1]
-        return self._monthly_features_dict['category'].loc[category_id, month]
+
+        if (category_id, month) in self._monthly_features_dict['category'].index:
+            return self._monthly_features_dict['category'].loc[category_id, month]
+
+        return self._monthly_features_dict['category_default']
 
     def month_features(self, month: pd.Series):
         month = int(month.iloc[0])
-        return self._monthly_features_dict['month'].loc[month]
+
+        if month in self._monthly_features_dict['month'].index:
+            return self._monthly_features_dict['month'].loc[month]
+
+        return self._monthly_features_dict['month_default']

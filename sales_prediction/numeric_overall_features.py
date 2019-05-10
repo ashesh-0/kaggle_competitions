@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 
@@ -28,6 +29,7 @@ def overall_features(sales_df, items_df):
 
         df = pd.concat(arr, axis=1).astype('float32')
         output[name] = df
+        output[name + '_default'] = pd.Series(np.zeros(df.shape[1]), index=df.columns)
 
     return output
 
@@ -39,10 +41,23 @@ class OverallFeatures:
         self._overall_features_dict = overall_features(sales_df, items_df)
 
     def item_features(self, item_id: pd.Series):
-        return self._overall_features_dict['item'].loc[item_id.iloc[0]]
+        item_id = item_id.iloc[0]
+
+        if item_id in self._overall_features_dict['item'].index:
+            return self._overall_features_dict['item'].loc[item_id]
+
+        return self._overall_features_dict['item_default']
 
     def shop_features(self, shop_id: pd.Series):
-        return self._overall_features_dict['shop'].loc[shop_id.iloc[0]]
+        shop_id = shop_id.iloc[0]
+        if shop_id in self._overall_features_dict['shop'].index:
+            return self._overall_features_dict['shop'].loc[shop_id]
+
+        return self._overall_features_dict['shop_default']
 
     def category_features(self, category_id: pd.Series):
-        return self._overall_features_dict['category'].loc[category_id.iloc[0]]
+        category_id = category_id.iloc[0]
+        if category_id in self._overall_features_dict['category'].index:
+            return self._overall_features_dict['category'].loc[category_id]
+
+        return self._overall_features_dict['category_default']

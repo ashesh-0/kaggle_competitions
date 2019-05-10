@@ -64,12 +64,10 @@ def date_preprocessing(sales_df):
 def basic_preprocessing(sales_df):
     date_preprocessing(sales_df)
     sales_df.sort_values(['shop_id', 'item_id', 'date_f'], inplace=True)
-
-    if 'shop_item_group' not in sales_df:
-        shop_id_changed = sales_df.shop_id.diff() != 0
-        item_id_changed = sales_df.item_id.diff() != 0
-        ids_changed = shop_id_changed | item_id_changed
-        sales_df['shop_item_group'] = ids_changed.cumsum()
+    shop_id_changed = sales_df.shop_id.diff() != 0
+    item_id_changed = sales_df.item_id.diff() != 0
+    ids_changed = shop_id_changed | item_id_changed
+    sales_df['shop_item_group'] = ids_changed.cumsum()
 
 
 def get_numeric_rolling_feature_df(sales_df, process_count=4):
