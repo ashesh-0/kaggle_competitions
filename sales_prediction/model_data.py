@@ -73,23 +73,31 @@ class ModelData:
         return X_df
 
     def get_test_X(self, sales_test_df, test_datetime: datetime, transform_missing_item_ids=True):
+
+        item_id_original = sales_test_df['item_id'].copy()
+
         gc.collect()
         # adding items_category_id to dataframe.
         item_to_cat_dict = self._items_df.set_index('item_id')['item_category_id'].to_dict()
         sales_test_df['item_category_id'] = sales_test_df.item_id.map(item_to_cat_dict)
 
+        assert sales_test_df['item_id'].equals(item_id_original)
         # assert self._id_features._item_id_alternate[83] != 83
         # assert self._id_features._item_id_alternate[173] != 173
 
         sales_test_df['date'] = test_datetime.strftime('%d.%m.%Y')
         sales_test_df['date_block_num'] = get_date_block_num(test_datetime)
         sales_test_df['orig_item_id'] = sales_test_df['item_id']
+
+        assert sales_test_df['orig_item_id'].equals(item_id_original)
+
         if transform_missing_item_ids:
             # Ensure that item_ids missing in train are replaced by nearby ids.
             self._id_features.set_alternate_ids(self._item_name_en, sales_test_df)
             sales_test_df['item_id'] = sales_test_df['item_id'].map(
                 self._id_features.transform_item_id_to_alternate_id_dict())
 
+        assert sales_test_df['orig_item_id'].equals(item_id_original)
         # Ideally, this should not be needed. However, we need to set price and item_cnt_day.
         test_item_ids = sales_test_df.item_id.unique().tolist()
         sales_train_df = self._sales_df[self._sales_df.item_id.isin(test_item_ids)]
@@ -110,7 +118,12 @@ class ModelData:
 
         sales_test_df = sales_test_df.set_index('index')
 
+        assert sales_test_df['orig_item_id'].equals(item_id_original)
+        assert sales_test_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
+
         date_preprocessing(sales_test_df)
+
+        assert sales_test_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
 
         recent_dt = test_datetime - timedelta(days=5 * 30)
         recent_sales_df = sales_train_df[(sales_train_df.date_f > recent_dt) & (sales_train_df.date_f < test_datetime)]
@@ -121,12 +134,16 @@ class ModelData:
 
         df = pd.concat([recent_sales_df, sales_test_df], axis=0, sort=False)
 
+        assert df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
+
         del recent_sales_df, valid_cnt, valid_prices, valid_dummy_values
 
         print('Preprocessing X about to be done now.')
         X_df = self.get_X(df)
 
         X_df = X_df.loc[sales_test_df.index]
+
+        assert X_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
 
         del df, sales_test_df
         gc.collect()
