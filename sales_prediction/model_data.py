@@ -102,20 +102,20 @@ class ModelData:
         assert sales_test_df['orig_item_id'].equals(item_id_original)
         # Ideally, this should not be needed. However, we need to set price and item_cnt_day.
         test_item_ids = sales_test_df.item_id.unique().tolist()
-        sales_train_df = self._sales_df[self._sales_df.item_id.isin(test_item_ids)]
+        test_shop_ids = sales_test_df.shop_id.unique().tolist()
+
+        filtr = self._sales_df.item_id.isin(test_item_ids) | self._sales_df.shop_id.isin(test_shop_ids)
+        sales_train_df = self._sales_df[filtr]
 
         # Ideally, this should not be needed. However, we need to set price and item_cnt_day.
-        valid_prices = sales_train_df.groupby(['item_id', 'shop_id'])[['item_price']].last()
-        valid_cnt = sales_train_df.groupby(['item_id', 'shop_id'])[['item_cnt_day']].mean()
-        valid_dummy_values = pd.concat([valid_cnt, valid_prices], axis=1)
+        valid_prices = sales_train_df.groupby(['item_id', 'shop_id'])[['item_price']].last().reset_index()
 
         # There are some pairs of shop_id, item_id which does not exist in train. For such, we will take mean value
-
         sales_test_df = sales_test_df.reset_index()
-        sales_test_df = pd.merge(sales_test_df, valid_dummy_values, on=['item_id', 'shop_id'], how='left')
+        sales_test_df = pd.merge(sales_test_df, valid_prices, on=['item_id', 'shop_id'], how='left')
 
         #NOTE: need something better. Valid_dummy_values does not cover all pairs of item_id and shop_id.
-        sales_test_df['item_cnt_day'] = sales_test_df['item_cnt_day'].fillna(ModelData.EPSILON)
+        sales_test_df['item_cnt_day'] = 0
         sales_test_df['item_price'] = sales_test_df['item_price'].fillna(sales_test_df['item_price'].mean())
 
         sales_test_df = sales_test_df.set_index('index')
