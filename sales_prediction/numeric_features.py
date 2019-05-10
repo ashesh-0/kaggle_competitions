@@ -78,7 +78,7 @@ def get_numeric_rolling_feature_df(sales_df, process_count=4):
     # price_1M_features_args = [(ndays_features, (sales_df, 'log_p', 30, quantiles), {})]
 
     # sales_half_M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 15, quantiles), {})]
-    sales_1M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 30, quantiles), {})]
+    sales_1M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 31, quantiles), {})]
     # sales_1_half_M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 45, quantiles), {})]
     sales_2M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 60, quantiles), {})]
     sales_3M_features_args = [(ndays_features, (sales_df, 'item_cnt_day', 90, quantiles), {})]
