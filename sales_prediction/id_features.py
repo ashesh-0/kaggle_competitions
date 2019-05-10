@@ -4,6 +4,17 @@ from typing import List, Tuple
 import numpy as np
 import pandas as pd
 
+DefaultValue = -1000
+
+
+class DefaultDict(dict):
+    def __init__(self, *args, **kwargs):
+        dict.__init__(self, *args, **kwargs)
+        self._default = DefaultValue
+
+    def __getitem__(self, idx):
+        return dict.get(self, idx, self._default)
+
 
 class IdFeatures:
     """
@@ -25,12 +36,12 @@ class IdFeatures:
 
         self._item_id_old_to_new = None
         self._shop_id_old_to_new = None
-        self._item_id_alternate = {}
-        self._item_id_alternate_dist = {}
+        self._item_id_alternate = DefaultDict()
+        self._item_id_alternate_dist = DefaultDict()
 
         # Using biclustering, we will assign cluster_ids which can then be used.
-        self._category_id_to_cluster = {}
-        self._shop_id_to_cluster = {}
+        self._category_id_to_cluster = DefaultDict()
+        self._shop_id_to_cluster = DefaultDict()
 
         # first time occuring features
         self._item_fm_df = None
@@ -66,8 +77,9 @@ class IdFeatures:
         model = SpectralBiclustering(n_clusters=self._num_clusters, method='log', random_state=0)
         model.fit(data)
 
-        self._shop_id_to_cluster = dict(list(zip(data_df.index.tolist(), model.row_labels_)))
-        self._category_id_to_cluster = dict(list(zip(data_df.columns.tolist(), model.column_labels_)))
+        self._shop_id_to_cluster = DefaultDict(list(zip(data_df.index.tolist(), model.row_labels_)))
+
+        self._category_id_to_cluster = DefaultDict(list(zip(data_df.columns.tolist(), model.column_labels_)))
 
     def _fit(self, id_name):
         monthly_df = self._sales_df.groupby(['date_block_num', id_name])['item_cnt_day'].sum().unstack().fillna(0)
@@ -76,7 +88,7 @@ class IdFeatures:
         avg_monthly_sales_df = (monthly_df.sum() / non_zero_months).to_frame('avg_sales')
         avg_monthly_sales_df = avg_monthly_sales_df.sort_values('avg_sales')
         avg_monthly_sales_df['new_id'] = list(range(avg_monthly_sales_df.shape[0]))
-        return avg_monthly_sales_df['new_id'].to_dict()
+        return DefaultDict(avg_monthly_sales_df['new_id'].to_dict())
 
     def find_missing_ids(self, test_sales_df):
         missing_ids = list(set(test_sales_df['item_id'].unique()) - set(self._sales_df['item_id'].unique()))
@@ -118,10 +130,6 @@ class IdFeatures:
 
     def fit(self):
         self._item_id_old_to_new = self._fit('item_id')
-        for item_id in self._items_df.item_id.unique():
-            if item_id not in self._item_id_old_to_new:
-                self._item_id_old_to_new[item_id] = IdFeatures.ABSENT_ITEM_ID_VALUE
-
         self._shop_id_old_to_new = self._fit('shop_id')
 
         self._fit_cluster()
