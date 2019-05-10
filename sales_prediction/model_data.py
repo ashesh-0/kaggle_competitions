@@ -62,12 +62,14 @@ class ModelData:
 
         # Adding id features
         X_df['category_cluster'] = X_df['item_category_id'].map(
-            self._id_features.transform_category_id_to_cluster_dict()).astype('int8')
+            self._id_features.transform_category_id_to_cluster_dict()).fillna(-1000).astype('int32')
+        X_df['shop_cluster'] = X_df['shop_id'].map(
+            self._id_features.transform_shop_id_to_cluster_dict()).fillna(-1000).astype('int32')
 
-        X_df['shop_cluster'] = X_df['shop_id'].map(self._id_features.transform_shop_id_to_cluster_dict()).astype('int8')
-
-        X_df['item_id_sorted'] = X_df['item_id'].map(self._id_features.transform_item_id_dict()).astype('int32')
-        X_df['shop_id_sorted'] = X_df['shop_id'].map(self._id_features.transform_shop_id_dict()).astype('int8')
+        X_df['item_id_sorted'] = X_df['item_id'].map(
+            self._id_features.transform_item_id_dict()).fillna(-1000).astype('int32')
+        X_df['shop_id_sorted'] = X_df['shop_id'].map(
+            self._id_features.transform_shop_id_dict()).fillna(-1000).astype('int32')
 
         print('Id features added')
         return X_df
