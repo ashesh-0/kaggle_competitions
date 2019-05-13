@@ -61,7 +61,23 @@ def test_mean_encoding_should_fit_global_correctly():
     print(train_df)
 
 
-def test_mean_should_get_val_correctly():
+def test_get_train_data_should_work():
+    train_df, val_df = dummy_data()
+
+    train_y = train_df['target']
+    val_y = val_df['target']
+
+    train_df.drop('target', axis=1, inplace=True)
+    val_df.drop('target', axis=1, inplace=True)
+
+    train_c = ['shop_id', 'item_id', 'item_category_id']
+    me = MeanEncoding(train_df[train_c], train_y, val_df[train_c], val_y)
+    X, y = me.get_train_data()
+    print(X)
+    assert X.index.equals(y.index)
+
+
+def test_get_val_data_should_work():
 
     train_df, val_df = dummy_data()
 

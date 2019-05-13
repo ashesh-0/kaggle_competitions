@@ -30,7 +30,7 @@ class MeanEncoding:
         assert 'shop_id' in X.columns
         assert 'item_category_id' in X.columns
 
-    def get_train_X(self, n_splits=5):
+    def get_train_data(self, n_splits=5):
         X = self._X.copy()
         X['target'] = self._y
 
@@ -54,7 +54,7 @@ class MeanEncoding:
             X.loc[indices, shop_enc_c] = X.loc[indices, 'shop_id'].map(shop_id_encoding)
             X.loc[indices, item_category_enc_c] = X.loc[indices, 'item_category_id'].map(item_category_id_encoding)
 
-        return X.drop('target', axis=1)
+        return X.drop('target', axis=1), self._y
 
     def fit_all(self):
         X_df = self._X.copy()
