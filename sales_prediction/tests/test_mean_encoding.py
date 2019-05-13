@@ -14,6 +14,7 @@ def dummy_data():
         [1, 1, 0, 5],
         [2, 0, 0, 6],
         [3, 2, 1, 7],
+        [3, 2, 1, 3],
     ]
 
     # Val
@@ -34,6 +35,10 @@ def dummy_data():
 
 
 def test_mean_encoding_should_fit_global_correctly():
+    MeanEncoding.MAX_ITEM_CATEGORY_ID = 5
+    MeanEncoding.MAX_ITEM_ID = 5
+    MeanEncoding.MAX_SHOP_ID = 5
+
     print('')
     train_df, val_df = dummy_data()
 
@@ -47,21 +52,33 @@ def test_mean_encoding_should_fit_global_correctly():
     me = MeanEncoding(train_df[train_c], train_y, val_df[train_c], val_y)
 
     assert me._item_category_encoding_map[0] == 18 / 5
-    assert me._item_category_encoding_map[1] == 10 / 2
+    assert me._item_category_encoding_map[1] == 13 / 3
 
     assert me._item_encoding_map[0] == 11 / 3
     assert me._item_encoding_map[1] == 7 / 2
-    assert me._item_encoding_map[2] == 10 / 2
+    assert me._item_encoding_map[2] == 13 / 3
 
     assert me._shop_encoding_map[0] == 6 / 3
     assert me._shop_encoding_map[1] == 9 / 2
     assert me._shop_encoding_map[2] == 6
-    assert me._shop_encoding_map[3] == 7
+    assert me._shop_encoding_map[3] == 5
+
+    assert me._item_shop_encoding_map[0] == 1
+    assert me._item_shop_encoding_map[1] == 4
+    assert me._item_shop_encoding_map[2] == 6
+    assert me._item_shop_encoding_map[100] == 2
+    assert me._item_shop_encoding_map[101] == 5
+    assert me._item_shop_encoding_map[200] == 3
+    assert me._item_shop_encoding_map[203] == 5
 
     print(train_df)
 
 
 def test_get_train_data_should_work():
+    MeanEncoding.MAX_ITEM_CATEGORY_ID = 5
+    MeanEncoding.MAX_ITEM_ID = 5
+    MeanEncoding.MAX_SHOP_ID = 5
+
     train_df, val_df = dummy_data()
 
     train_y = train_df['target']
@@ -78,6 +95,9 @@ def test_get_train_data_should_work():
 
 
 def test_get_val_data_should_work():
+    MeanEncoding.MAX_ITEM_CATEGORY_ID = 5
+    MeanEncoding.MAX_ITEM_ID = 5
+    MeanEncoding.MAX_SHOP_ID = 5
 
     train_df, val_df = dummy_data()
 
@@ -91,10 +111,13 @@ def test_get_val_data_should_work():
     me = MeanEncoding(train_df[train_c], train_y, val_df[train_c], val_y)
     val_X_df, val_y_df = me.get_val_data()
 
-    item_encoding = val_X_df['item_id'].map({0: 11 / 3, 1: 7 / 2, 2: 10 / 2})
-    shop_encoding = val_X_df['shop_id'].map({0: 2, 1: 4.5, 2: 6, 3: 7})
-    categ_encoding = val_X_df['item_category_id'].map({0: 18 / 5, 1: 5})
+    val_X_df['item_shop_id'] = 100 * val_X_df['item_id'] + val_X_df['shop_id']
+    item_encoding = val_X_df['item_id'].map({0: 11 / 3, 1: 7 / 2, 2: 13 / 3})
+    shop_encoding = val_X_df['shop_id'].map({0: 2, 1: 4.5, 2: 6, 3: 5})
+    categ_encoding = val_X_df['item_category_id'].map({0: 18 / 5, 1: 13 / 3})
+    item_shop_encoding = val_X_df['item_shop_id'].map({0: 1, 1: 4, 2: 6, 100: 2, 101: 5, 200: 3, 203: 5})
 
     assert val_X_df['item_id_mean_enc'].equals(item_encoding)
     assert val_X_df['shop_id_mean_enc'].equals(shop_encoding)
     assert val_X_df['item_category_id_mean_enc'].equals(categ_encoding)
+    assert val_X_df['item_shop_id_mean_enc'].equals(item_shop_encoding)
