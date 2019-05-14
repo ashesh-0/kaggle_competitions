@@ -24,10 +24,13 @@ class MeanEncoding:
 
         self.fit_all()
 
-        self.transform_item_id(self._val_X)
-        self.transform_shop_id(self._val_X)
-        self.transform_category_id(self._val_X)
-        self.transform_item_shop_id(self._val_X)
+        self.transform(self._val_X)
+
+    def transform(self, df):
+        self.transform_item_id(df)
+        self.transform_shop_id(df)
+        self.transform_category_id(df)
+        self.transform_item_shop_id(df)
 
     def validations(self, X):
         assert 'item_id' in X.columns
