@@ -40,7 +40,7 @@ class ModelValidator:
         val_X_df, val_y_df = self.get_val_data()
         return (train_X_df, train_y_df, val_X_df, val_y_df)
 
-    def get_val_data(self):
+    def get_val_data(self, add_extra_zeroed_rows=False):
 
         val_date_block_num = self._train_end_date_block_num - self._skip_last_n_months
         val_X_df = self._sales_df[self._sales_df.date_block_num == val_date_block_num][['item_id',
@@ -48,26 +48,27 @@ class ModelValidator:
         val_X_df = val_X_df.groupby(['item_id', 'shop_id']).first().reset_index().set_index('index')
         val_y_df = self._y_df.loc[val_X_df.index].copy()
 
-        item_ids = get_items_in_market(self._sales_df, val_date_block_num)
-        shop_ids = get_shops_in_market(self._sales_df, val_date_block_num)
+        if add_extra_zeroed_rows:
+            item_ids = get_items_in_market(self._sales_df, val_date_block_num)
+            shop_ids = get_shops_in_market(self._sales_df, val_date_block_num)
 
-        existing_ids = set(val_X_df[['item_id', 'shop_id']].apply(tuple, axis=1).values)
+            existing_ids = set(val_X_df[['item_id', 'shop_id']].apply(tuple, axis=1).values)
 
-        extra_ids = np.zeros((len(item_ids) * len(shop_ids) - len(existing_ids), 2))
-        index = 0
-        for item_id in item_ids:
-            for shop_id in shop_ids:
-                if (item_id, shop_id) in existing_ids:
-                    continue
-                extra_ids[index, :] = [item_id, shop_id]
-                index += 1
+            extra_ids = np.zeros((len(item_ids) * len(shop_ids) - len(existing_ids), 2))
+            index = 0
+            for item_id in item_ids:
+                for shop_id in shop_ids:
+                    if (item_id, shop_id) in existing_ids:
+                        continue
+                    extra_ids[index, :] = [item_id, shop_id]
+                    index += 1
 
-        other_val_X_df = pd.DataFrame(extra_ids, columns=['item_id', 'shop_id'])
-        other_val_X_df.index += val_X_df.index.max() + 1
-        other_val_y_df = pd.Series(np.zeros(other_val_X_df.shape[0]), index=other_val_X_df.index)
+            other_val_X_df = pd.DataFrame(extra_ids, columns=['item_id', 'shop_id'])
+            other_val_X_df.index += val_X_df.index.max() + 1
+            other_val_y_df = pd.Series(np.zeros(other_val_X_df.shape[0]), index=other_val_X_df.index)
 
-        val_X_df = pd.concat([val_X_df, other_val_X_df])
-        val_y_df = pd.concat([val_y_df, other_val_y_df])
+            val_X_df = pd.concat([val_X_df, other_val_X_df])
+            val_y_df = pd.concat([val_y_df, other_val_y_df])
 
         val_X_df = val_X_df.sort_index().astype(int)
         val_y_df = val_y_df.loc[val_X_df.index]
