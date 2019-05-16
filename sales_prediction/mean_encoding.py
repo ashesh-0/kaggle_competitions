@@ -21,6 +21,7 @@ class MeanEncoding:
         self._shop_encoding_map = {}
         self._item_category_encoding_map = {}
         self._item_shop_encoding_map = {}
+        self._shop_category_encoding_map = {}
 
         self.fit_all()
 
@@ -31,6 +32,7 @@ class MeanEncoding:
         self.transform_shop_id(df)
         self.transform_category_id(df)
         self.transform_item_shop_id(df)
+        self.transform_shop_category_id(df)
 
     def validations(self, X):
         assert 'item_id' in X.columns
@@ -75,9 +77,15 @@ class MeanEncoding:
         X_df = self._X.copy()
         X_df['target'] = self._y
         self.fit_item_category_id(X_df)
+        print('[ME] category done')
         self.fit_item_id(X_df)
+        print('[ME] item done')
         self.fit_shop_id(X_df)
+        print('[ME] shop done')
         self.fit_item_shop_id(X_df)
+        print('[ME] item shop done')
+        self.fit_shop_category_id(X_df)
+        print('[ME] shop category done')
 
     def _fit(self, X_df, id_column, max_id):
         item_encoding_map = X_df.groupby([id_column])['target'].mean().to_dict()
@@ -97,6 +105,18 @@ class MeanEncoding:
     def _get_item_shop_id(self, df):
         return df['item_id'] * 100 + df['shop_id']
 
+    def _get_shop_category_id(self, df):
+        return df['shop_id'] * 100 + df['item_category_id']
+
+    def fit_shop_category_id(self, X_df):
+        assert MeanEncoding.MAX_ITEM_CATEGORY_ID < 100
+        X_df['shop_category_id'] = self._get_shop_category_id(X_df)
+
+        self._shop_category_encoding_map = self._fit(X_df, 'shop_category_id',
+                                                     100 * MeanEncoding.MAX_ITEM_ID + MeanEncoding.MAX_SHOP_ID)
+
+        X_df.drop('shop_category_id', axis=1, inplace=True)
+
     def fit_item_shop_id(self, X_df):
         assert MeanEncoding.MAX_SHOP_ID < 100
         X_df['item_shop_id'] = self._get_item_shop_id(X_df)
@@ -109,6 +129,10 @@ class MeanEncoding:
     def transform_item_shop_id(self, df):
         item_shop_id = self._get_item_shop_id(df)
         df['item_shop_id_mean_enc'] = item_shop_id.map(self._item_shop_encoding_map)
+
+    def transform_shop_category_id(self, df):
+        shop_category_id = self._get_shop_category_id(df)
+        df['shop_category_id_mean_enc'] = shop_category_id.map(self._shop_category_encoding_map)
 
     def transform_item_id(self, df):
         df['item_id_mean_enc'] = df['item_id'].map(self._item_encoding_map)

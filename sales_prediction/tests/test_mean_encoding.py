@@ -71,6 +71,18 @@ def test_mean_encoding_should_fit_global_correctly():
     assert me._item_shop_encoding_map[200] == 3
     assert me._item_shop_encoding_map[203] == 5
 
+    assert me._shop_category_encoding_map[0] == 1.5
+    assert me._shop_category_encoding_map[1] == 3
+
+    assert me._shop_category_encoding_map[100] == 4.5
+    assert me._shop_category_encoding_map[101] == 0
+
+    assert me._shop_category_encoding_map[200] == 6
+    assert me._shop_category_encoding_map[201] == 0
+
+    assert me._shop_category_encoding_map[300] == 0
+    assert me._shop_category_encoding_map[301] == 5
+
     print(train_df)
 
 
