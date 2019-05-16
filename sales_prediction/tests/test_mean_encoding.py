@@ -3,29 +3,29 @@ from mean_encoding import MeanEncoding
 
 
 def dummy_data():
-    columns = ['shop_id', 'item_id', 'item_category_id', 'target']
+    columns = ['month', 'shop_id', 'item_id', 'item_category_id', 'target']
 
     # Train
     train_data = [
-        [0, 0, 0, 1],
-        [0, 1, 0, 2],
-        [0, 2, 1, 3],
-        [1, 0, 0, 4],
-        [1, 1, 0, 5],
-        [2, 0, 0, 6],
-        [3, 2, 1, 7],
-        [3, 2, 1, 3],
+        [1, 0, 0, 0, 1],
+        [1, 0, 1, 0, 2],
+        [1, 0, 2, 1, 3],
+        [1, 1, 0, 0, 4],
+        [2, 1, 1, 0, 5],
+        [2, 2, 0, 0, 6],
+        [2, 3, 2, 1, 7],
+        [3, 3, 2, 1, 3],
     ]
 
     # Val
     val_data = [
-        [0, 0, 0, 3],
-        [0, 1, 0, 3],
-        [0, 2, 1, 3],
-        [1, 0, 0, 3],
-        [1, 1, 0, 3],
-        [2, 0, 0, 3],
-        [3, 2, 1, 3],
+        [1, 0, 0, 0, 3],
+        [1, 0, 1, 0, 3],
+        [2, 0, 2, 1, 3],
+        [3, 1, 0, 0, 3],
+        [4, 1, 1, 0, 3],
+        [4, 2, 0, 0, 3],
+        [5, 3, 2, 1, 3],
     ]
 
     train_df = pd.DataFrame(train_data, columns=columns)
@@ -48,8 +48,8 @@ def test_mean_encoding_should_fit_global_correctly():
     train_df.drop('target', axis=1, inplace=True)
     val_df.drop('target', axis=1, inplace=True)
 
-    train_c = ['shop_id', 'item_id', 'item_category_id']
-    me = MeanEncoding(train_df[train_c], train_y, val_df[train_c], val_y)
+    train_c = ['shop_id', 'item_id', 'item_category_id', 'month']
+    me = MeanEncoding(train_df[train_c].copy(), train_y, val_df[train_c].copy(), val_y)
 
     assert me._item_category_encoding_map[0] == 18 / 5
     assert me._item_category_encoding_map[1] == 13 / 3
@@ -83,6 +83,11 @@ def test_mean_encoding_should_fit_global_correctly():
     assert me._shop_category_encoding_map[300] == 0
     assert me._shop_category_encoding_map[301] == 5
 
+    assert me._month_encoding_map[1] == 2.5
+    assert me._month_encoding_map[2] == 6
+    assert me._month_encoding_map[3] == 3
+    assert me._month_encoding_map[4] == 0
+    assert me._month_encoding_map[5] == 0
     print(train_df)
 
 
@@ -99,8 +104,8 @@ def test_get_train_data_should_work():
     train_df.drop('target', axis=1, inplace=True)
     val_df.drop('target', axis=1, inplace=True)
 
-    train_c = ['shop_id', 'item_id', 'item_category_id']
-    me = MeanEncoding(train_df[train_c], train_y, val_df[train_c], val_y)
+    train_c = ['month', 'shop_id', 'item_id', 'item_category_id']
+    me = MeanEncoding(train_df[train_c].copy(), train_y, val_df[train_c].copy(), val_y)
     X, y = me.get_train_data()
     print(X)
     assert X.index.equals(y.index)
@@ -119,8 +124,8 @@ def test_get_val_data_should_work():
     train_df.drop('target', axis=1, inplace=True)
     val_df.drop('target', axis=1, inplace=True)
 
-    train_c = ['shop_id', 'item_id', 'item_category_id']
-    me = MeanEncoding(train_df[train_c], train_y, val_df[train_c], val_y)
+    train_c = ['month', 'shop_id', 'item_id', 'item_category_id']
+    me = MeanEncoding(train_df[train_c].copy(), train_y, val_df[train_c].copy(), val_y)
     val_X_df, val_y_df = me.get_val_data()
 
     val_X_df['item_shop_id'] = 100 * val_X_df['item_id'] + val_X_df['shop_id']

@@ -39,10 +39,6 @@ class IdFeatures:
         self._item_id_alternate = DefaultDict()
         self._item_id_alternate_dist = DefaultDict()
 
-        # Using biclustering, we will assign cluster_ids which can then be used.
-        self._category_id_to_cluster = DefaultDict()
-        self._shop_id_to_cluster = DefaultDict()
-
         # first time occuring features
         self._item_fm_df = None
         self._item_shop_fm_df = None
@@ -59,27 +55,6 @@ class IdFeatures:
                                                  'shop_id'])['date_block_num'].min().to_frame('fm').reset_index()
         assert 'orig_item_id' in self._item_fm_df
         assert 'orig_item_id' in self._item_shop_fm_df
-
-    def _fit_cluster(self):
-        if 'item_category_id' not in self._sales_df:
-            merged_df = pd.merge(self._sales_df, self._items_df, how='left', on='item_id')
-        else:
-            merged_df = self._sales_df
-
-        df = merged_df.groupby(['shop_id', 'item_category_id', 'date_block_num'])['item_cnt_day'].sum().reset_index()
-        df = df.groupby(['shop_id', 'item_category_id'])['item_cnt_day'].mean()
-        df[df > 20] = 20
-
-        # for categories which does not exist for a shop, its sum has to be 0.
-        data_df = df.unstack().fillna(0)
-        data = data_df.values
-
-        model = SpectralBiclustering(n_clusters=self._num_clusters, method='log', random_state=0)
-        model.fit(data)
-
-        self._shop_id_to_cluster = DefaultDict(list(zip(data_df.index.tolist(), model.row_labels_)))
-
-        self._category_id_to_cluster = DefaultDict(list(zip(data_df.columns.tolist(), model.column_labels_)))
 
     def _fit(self, id_name):
         monthly_df = self._sales_df.groupby(['date_block_num', id_name])['item_cnt_day'].sum().unstack().fillna(0)
@@ -132,8 +107,6 @@ class IdFeatures:
         self._item_id_old_to_new = self._fit('item_id')
         self._shop_id_old_to_new = self._fit('shop_id')
 
-        self._fit_cluster()
-
     def get_fm_features(self, df, item_id_and_shop_id=False):
         """
         Adds  first month features to df.
@@ -163,37 +136,8 @@ class IdFeatures:
         # some item ids donot exist in the training data. For them, we need to map them to appropriate items
         return self._item_id_alternate
 
-    def transform_category_id_to_cluster_dict(self):
-        return self._category_id_to_cluster
-
     def transform_item_id_dict(self):
         return self._item_id_old_to_new
 
     def transform_shop_id_dict(self):
         return self._shop_id_old_to_new
-
-    def transform_shop_id_to_cluster_dict(self):
-        return self._shop_id_to_cluster
-
-
-# if __name__ == '__main__':
-#     cols = ['date_block_num', 'item_id', 'shop_id', 'item_cnt_day']
-#     df = pd.DataFrame(
-#         [
-#             [0, 0, 0, 5],
-#             [0, 0, 0, 10],
-#             [1, 0, 0, 4],
-#             [1, 0, 0, 6],
-#             [0, 1, 0, 1],
-#             [0, 1, 0, 2],
-#             [1, 1, 0, 4],
-#             [1, 1, 0, 6],
-#             [0, 2, 1, 10],
-#             [0, 2, 1, 2],
-#             [1, 2, 1, 4],
-#             [1, 2, 1, 6],
-#         ],
-#         columns=cols)
-
-#     f = IdFeatures(df)
-#     print(f.get_features(0, 0))

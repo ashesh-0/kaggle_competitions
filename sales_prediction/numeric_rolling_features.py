@@ -4,8 +4,12 @@ from sortedcontainers import SortedList
 
 
 def nmonths_features(sales_df, col_name, num_months, quantiles):
-    # sales_df is sorted by shop_id, item_id and date.
-    # Also, shop_item_group value changes when either the shop or the item changes.
+    """
+    It does not use that month's data to compute features. it uses previous months data.
+    Args:
+        sales_df: it  is sorted by shop_id, item_id and date_block_num.
+            Also, shop_item_group value changes when either the shop or the item changes.
+    """
     assert num_months >= 1
     columns = ['sum', 'min', 'max'] + ['{}_q'.format(q) for q in quantiles]
     columns = ['{}_{}M_{}'.format(col_name, num_months, c) for c in columns]

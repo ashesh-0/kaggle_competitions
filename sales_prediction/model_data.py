@@ -1,11 +1,9 @@
-import gc
 import pandas as pd
-from datetime import timedelta, datetime
+from datetime import datetime
 
 from numeric_utils import get_date_block_num
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
-from text_features import TextFeatures
 
 
 class ModelData:
@@ -30,7 +28,9 @@ class ModelData:
         # self._text_features = TextFeatures(category_en, shop_name_en)
 
     def get_train_X_y(self):
+        print('Fetching X')
         X_df = self.get_X(self._sales_df)
+        print('X fetched. Fetching y')
         y_df = get_y(self._sales_df).to_frame('item_cnt_month')
         print('Y fetched')
 
@@ -44,6 +44,7 @@ class ModelData:
     def get_X(self, sales_df):
         X_df = self._numeric_features.get(sales_df)
         assert X_df.index.equals(sales_df.index)
+        print('Numeric features fetched.')
 
         X_df['orig_item_id'] = sales_df['orig_item_id']
         X_df['date_block_num'] = sales_df['date_block_num']
@@ -60,12 +61,6 @@ class ModelData:
         # X_df = pd.concat([X_df, shop_name_features_df, category_name_features_df], axis=1)
         # print('Text features added')
 
-        # Adding id features
-        X_df['category_cluster'] = X_df['item_category_id'].map(
-            self._id_features.transform_category_id_to_cluster_dict()).fillna(-1000).astype('int32')
-        X_df['shop_cluster'] = X_df['shop_id'].map(
-            self._id_features.transform_shop_id_to_cluster_dict()).fillna(-1000).astype('int32')
-
         X_df['item_id_sorted'] = X_df['item_id'].map(
             self._id_features.transform_item_id_dict()).fillna(-1000).astype('int32')
         X_df['shop_id_sorted'] = X_df['shop_id'].map(
@@ -74,24 +69,16 @@ class ModelData:
         print('Id features added')
         return X_df
 
-    def get_test_X(self, sales_test_df, test_datetime: datetime, transform_missing_item_ids=True):
+    def get_test_X(self, sales_test_df, test_datetime: datetime, transform_missing_item_ids=False):
 
         item_id_original = sales_test_df['item_id'].copy()
-
-        gc.collect()
         # adding items_category_id to dataframe.
         item_to_cat_dict = self._items_df.set_index('item_id')['item_category_id'].to_dict()
         sales_test_df['item_category_id'] = sales_test_df.item_id.map(item_to_cat_dict)
 
-        assert sales_test_df['item_id'].equals(item_id_original)
-        # assert self._id_features._item_id_alternate[83] != 83
-        # assert self._id_features._item_id_alternate[173] != 173
-
         sales_test_df['date'] = test_datetime.strftime('%d.%m.%Y')
         sales_test_df['date_block_num'] = get_date_block_num(test_datetime)
         sales_test_df['orig_item_id'] = sales_test_df['item_id']
-
-        assert sales_test_df['orig_item_id'].equals(item_id_original)
 
         if transform_missing_item_ids:
             # Ensure that item_ids missing in train are replaced by nearby ids.
@@ -99,36 +86,17 @@ class ModelData:
             sales_test_df['item_id'] = sales_test_df['item_id'].map(
                 self._id_features.transform_item_id_to_alternate_id_dict())
 
-        assert sales_test_df['orig_item_id'].equals(item_id_original)
-        # Ideally, this should not be needed. However, we need to set price and item_cnt_day.
-        test_item_ids = sales_test_df.item_id.unique().tolist()
-        test_shop_ids = sales_test_df.shop_id.unique().tolist()
-
-        filtr = self._sales_df.item_id.isin(test_item_ids) | self._sales_df.shop_id.isin(test_shop_ids)
-        sales_train_df = self._sales_df[filtr]
-
-        # Ideally, this should not be needed. However, we need to set price and item_cnt_day.
-        valid_prices = sales_train_df.groupby(['item_id', 'shop_id'])[['item_price']].last().reset_index()
-
-        # There are some pairs of shop_id, item_id which does not exist in train. For such, we will take mean value
-        sales_test_df = sales_test_df.reset_index()
-        sales_test_df = pd.merge(sales_test_df, valid_prices, on=['item_id', 'shop_id'], how='left')
-
-        #NOTE: need something better. Valid_dummy_values does not cover all pairs of item_id and shop_id.
         sales_test_df['item_cnt_day'] = 0
-        sales_test_df['item_price'] = sales_test_df['item_price'].fillna(sales_test_df['item_price'].mean())
-
-        sales_test_df = sales_test_df.set_index('index')
-
-        assert sales_test_df['orig_item_id'].equals(item_id_original)
-        assert sales_test_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
+        sales_test_df['item_price'] = 0
 
         date_preprocessing(sales_test_df)
-
         assert sales_test_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
 
-        recent_dt = test_datetime - timedelta(days=5 * 30)
-        recent_sales_df = sales_train_df[(sales_train_df.date_f > recent_dt) & (sales_train_df.date_f < test_datetime)]
+        test_dbn = get_date_block_num(test_datetime)
+        recent_dbn = test_dbn - 5
+        recent_sales_df = self._sales_df[(self._sales_df.date_block_num >= recent_dbn)
+                                         & (self._sales_df.date_block_num < test_dbn)]
+
         recent_sales_df = recent_sales_df.drop('shop_item_group', axis=1)
 
         subtract_index_offset = max(recent_sales_df.index) - (min(sales_test_df.index) - 1)
@@ -138,16 +106,26 @@ class ModelData:
 
         assert df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
 
-        del recent_sales_df, valid_prices
-
         print('Preprocessing X about to be done now.')
         X_df = self.get_X(df)
 
         X_df = X_df.loc[sales_test_df.index]
 
         assert X_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
-
-        del df, sales_test_df
-        gc.collect()
-
         return X_df
+
+
+if __name__ == '__main__':
+    from constant_lists import CATEGORIES_EN, SHOPS_EN
+    sales_df = pd.read_csv('data/sales_train.csv')
+    sales_df.loc[sales_df['item_price'] < 0, 'item_price'] = 0
+
+    items_df = pd.read_csv('data/items.csv')
+
+    print(sales_df.head())
+    print(items_df.head())
+
+    md = ModelData(sales_df[sales_df.date_block_num > 26].copy(), items_df, CATEGORIES_EN, SHOPS_EN, [])
+    X, y = md.get_train_X_y()
+    print('Shape of X', X.shape)
+    print(X.head())
