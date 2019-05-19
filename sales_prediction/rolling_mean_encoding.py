@@ -159,4 +159,4 @@ def apply_mean_encoding(df):
 
 mean_encodings = rolling_mean_encoding(sales_df)
 unique_ids_dict = find_unique_ids(shops_df, items_df)
-change_encoding_df_to_dict(mean_encodings)
+change_encoding_df_to_dict(unique_ids_dict)
