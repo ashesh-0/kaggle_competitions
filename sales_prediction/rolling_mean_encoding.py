@@ -74,18 +74,26 @@ def fill_missing_keys(encoding_dict, ids):
             encoding_dict[key] = 0
 
 
-def find_unique_ids(shops_df, items_df):
+def find_unique_ids(train_X_df, test_X_df):
     unique_ids_dict = {}
-    unique_ids_dict['item_id'] = items_df.item_id.unique()
-    unique_ids_dict['shop_id'] = shops_df.shop_id.unique()
-    unique_ids_dict['item_category_id'] = items_df.item_category_id.unique()
+    unique_ids_dict['item_id'] = list(set(train_X_df.item_id.values).union(set(test_X_df.item_id.values)))
+    unique_ids_dict['shop_id'] = train_X_df.shop_id.unique()
+    unique_ids_dict['item_category_id'] = train_X_df.item_category_id.unique()
 
-    unique_ids_dict['item_shop_id'] = itertools.product(unique_ids_dict['item_id'], unique_ids_dict['shop_id'])
-    unique_ids_dict['item_shop_id'] = list(map(lambda x: x[0] * 100 + x[1], unique_ids_dict['item_shop_id']))
+    train_X_df['item_shop_id'] = train_X_df['item_id'] * 100 + train_X_df['shop_id']
+    test_X_df['item_shop_id'] = test_X_df['item_id'] * 100 + test_X_df['shop_id']
 
-    unique_ids_dict['shop_category_id'] = itertools.product(unique_ids_dict['shop_id'],
-                                                            unique_ids_dict['item_category_id'])
-    unique_ids_dict['shop_category_id'] = list(map(lambda x: x[0] * 100 + x[1], unique_ids_dict['shop_category_id']))
+    unique_ids_dict['item_shop_id'] = list(
+        set(train_X_df.item_shop_id.values).union(set(test_X_df.item_shop_id.values)))
+
+    train_X_df['shop_category_id'] = train_X_df['shop_id'] * 100 + train_X_df['item_category_id']
+    test_X_df['shop_category_id'] = test_X_df['shop_id'] * 100 + test_X_df['item_category_id']
+    unique_ids_dict['shop_category_id'] = list(
+        set(train_X_df.item_shop_id.values).union(set(test_X_df.item_shop_id.values)))
+
+    train_X_df.drop(['item_shop_id', 'shop_category_id'], axis=1, inplace=True)
+    test_X_df.drop(['item_shop_id', 'shop_category_id'], axis=1, inplace=True)
+
     return unique_ids_dict
 
 
@@ -158,5 +166,5 @@ def apply_mean_encoding(df):
 
 
 mean_encodings = rolling_mean_encoding(sales_df)
-unique_ids_dict = find_unique_ids(shops_df, items_df)
+unique_ids_dict = find_unique_ids(X_df, test_X_df)
 change_encoding_df_to_dict(unique_ids_dict)
