@@ -30,7 +30,7 @@ def test_rolling_mean_encoding_does_not_change_index_ordering_and_has_correct_va
     sales_df.sort_index(inplace=True)
     new_index = sales_df.index
 
-    rolling_mean_encoding(sales_df)
+    sales_df = rolling_mean_encoding(sales_df)
 
     assert sales_df.index.equals(new_index)
     sales_df = sales_df.loc[orig_index]
@@ -41,13 +41,17 @@ def test_rolling_mean_encoding_does_not_change_index_ordering_and_has_correct_va
         ['item_id_enc', 'shop_id_enc', 'item_category_id_enc', 'item_shop_id_enc', 'shop_category_id_enc'])
 
     # -10 is for first time values.
-    assert max(abs(sales_df['item_id_enc'].values - [-10, -10, -10, 1 / 1, 2 / 1, 5 / 2, 3 / 1, 10 / 2])) < 1e-5
+    assert max(abs(sales_df['item_id_enc'].values - [-10, -10, -10, -10, 2 / 1, 5 / 2, 3 / 1, 10 / 2])) < 1e-5
 
-    assert max(abs(sales_df['shop_id_enc'].values - [-10, 1 / 1, 3 / 2, -10, 4 / 1, -10, -10, 7 / 1])) < 1e-5
+    # Monthly numbers
+    #  0 => 2
+    #  1 => 4
+    #  2 => _, 6
+    #  3 => _, 7, 3
+    assert max(abs(sales_df['shop_id_enc'].values - [-10, -10, -10, -10, 4 / 1, -10, -10, 7])) < 1e-5
 
-    assert max(
-        abs(sales_df['item_category_id_enc'].values - [-10, 1 / 1, -10, 3 / 2, 7 / 3, 12 / 4, 3 / 1, 10 / 2])) < 1e-5
+    assert max(abs(sales_df['item_category_id_enc'].values - [-10, -10, -10, -10, 7 / 3, 7 / 3, 3 / 1, 10 / 2])) < 1e-5
 
     assert max(abs(sales_df['item_shop_id_enc'].values - [-10, -10, -10, -10, -10, -10, -10, 7 / 1])) < 1e-5
 
-    assert max(abs(sales_df['shop_category_id_enc'].values - [-10, 1 / 1, -10, -10, 4 / 1, -10, -10, 7 / 1])) < 1e-5
+    assert max(abs(sales_df['shop_category_id_enc'].values - [-10, -10, -10, -10, 4 / 1, -10, -10, 7 / 1])) < 1e-5
