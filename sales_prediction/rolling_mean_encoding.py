@@ -1,170 +1,52 @@
-import itertools
 import numpy as np
 
 
-def fill_missing_month(df):
-    skipped_months = set(range(35)) - set(df.columns.tolist())
-    if skipped_months:
-        for month in skipped_months:
-            df[month] = 0
-
-    df.sort_index(axis=1, inplace=True)
-    assert set(range(35)) == set(df.columns.tolist())
+def _rolling_mean_encoding_by_id(combined_sales_df, col_id):
+    sum_df = combined_sales_df.groupby(col_id)['item_cnt_day'].cumsum() - combined_sales_df['item_cnt_day']
+    count_df = combined_sales_df.groupby(col_id)['item_cnt_day'].cumcount()
+    id_encoding = sum_df / count_df
+    id_encoding[count_df == 0] = -10
+    return id_encoding
 
 
-def rolling_operation(df):
-    feature_df = df.rolling(df.shape[1], min_periods=1).mean()
-    # no data leakage.
-    feature_df = feature_df.shift(1, axis=1)
-    # first column is all nans.
-    feature_df[0] = 0
-    return feature_df.sort_index()
+def rolling_mean_encoding(combined_sales_df):
 
+    int64 = combined_sales_df[['item_id', 'shop_id', 'item_category_id']].dtypes == np.int64
+    int32 = combined_sales_df[['item_id', 'shop_id', 'item_category_id']].dtypes == np.int32
+    assert (int32 | int64).all()
 
-def rolling_mean_encoding(sales_df):
+    combined_sales_df.reset_index(inplace=True)
+    combined_sales_df.sort_values('date_block_num', inplace=True)
+
     # item_id
-    df = sales_df.groupby(['item_id', 'date_block_num'])['item_cnt_day'].mean().unstack().fillna(0)
-    fill_missing_month(df)
-    item_encoding = rolling_operation(df)
-
+    item_encoding = _rolling_mean_encoding_by_id(combined_sales_df, 'item_id')
     print('Item id encoding completed')
 
     # category_id
-    df = sales_df.groupby(['item_category_id', 'date_block_num'])['item_cnt_day'].mean().unstack().fillna(0)
-    fill_missing_month(df)
-    category_encoding = rolling_operation(df)
-
+    category_encoding = _rolling_mean_encoding_by_id(combined_sales_df, 'item_category_id')
     print('Category id encoding completed')
-    # shop_encoding
-    df = sales_df.groupby(['shop_id', 'date_block_num'])['item_cnt_day'].mean().unstack().fillna(0)
-    fill_missing_month(df)
-    shop_encoding = rolling_operation(df)
 
+    # shop_encoding
+    shop_encoding = _rolling_mean_encoding_by_id(combined_sales_df, 'shop_id')
     print('Shop id encoding completed')
 
-    # shop_encoding
-    sales_df['item_shop_id'] = sales_df['item_id'] * 100 + sales_df['shop_id']
-    df = sales_df.groupby(['item_shop_id', 'date_block_num'])['item_cnt_day'].mean().unstack().fillna(0)
-    fill_missing_month(df)
-    item_shop_encoding = rolling_operation(df)
+    # item shop_encoding
+    combined_sales_df['item_shop_id'] = combined_sales_df['item_id'] * 100 + combined_sales_df['shop_id']
+    item_shop_encoding = _rolling_mean_encoding_by_id(combined_sales_df, 'item_shop_id')
     print('Item shop id encoding completed')
 
     # shop category id
-    sales_df['shop_category_id'] = sales_df['shop_id'] * 100 + sales_df['item_category_id']
-    df = sales_df.groupby(['shop_category_id', 'date_block_num'])['item_cnt_day'].mean().unstack().fillna(0)
-    fill_missing_month(df)
-    shop_category_encoding = rolling_operation(df)
+    combined_sales_df['shop_category_id'] = combined_sales_df['shop_id'] * 100 + combined_sales_df['item_category_id']
+    shop_category_encoding = _rolling_mean_encoding_by_id(combined_sales_df, 'shop_category_id')
     print('Shop category id encoding completed')
 
-    return {
-        'item_id': item_encoding.astype(np.float32),
-        'item_category_id': category_encoding.astype(np.float32),
-        'shop_id': shop_encoding.astype(np.float32),
-        'item_shop_id': item_shop_encoding.astype(np.float32),
-        'shop_category_id': shop_category_encoding.astype(np.float32),
-    }
+    combined_sales_df.drop(['shop_category_id', 'item_shop_id'], axis=1, inplace=True)
 
+    combined_sales_df['item_id_enc'] = item_encoding.astype(np.float32).loc[combined_sales_df.index]
+    combined_sales_df['item_category_id_enc'] = category_encoding.astype(np.float32).loc[combined_sales_df.index]
+    combined_sales_df['shop_id_enc'] = shop_encoding.astype(np.float32).loc[combined_sales_df.index]
+    combined_sales_df['item_shop_id_enc'] = item_shop_encoding.astype(np.float32).loc[combined_sales_df.index]
+    combined_sales_df['shop_category_id_enc'] = shop_category_encoding.astype(np.float32).loc[combined_sales_df.index]
 
-def fill_missing_keys(encoding_dict, ids):
-    for ids in ids:
-        for m in range(34):
-            key = ids * 100 + m
-            if key in encoding_dict:
-                continue
-            encoding_dict[key] = 0
-
-
-def find_unique_ids(train_X_df, test_X_df):
-    unique_ids_dict = {}
-    unique_ids_dict['item_id'] = list(set(train_X_df.item_id.values).union(set(test_X_df.item_id.values)))
-    unique_ids_dict['shop_id'] = train_X_df.shop_id.unique()
-    unique_ids_dict['item_category_id'] = train_X_df.item_category_id.unique()
-
-    train_X_df['item_shop_id'] = train_X_df['item_id'] * 100 + train_X_df['shop_id']
-    test_X_df['item_shop_id'] = test_X_df['item_id'] * 100 + test_X_df['shop_id']
-
-    unique_ids_dict['item_shop_id'] = list(
-        set(train_X_df.item_shop_id.values).union(set(test_X_df.item_shop_id.values)))
-
-    train_X_df['shop_category_id'] = train_X_df['shop_id'] * 100 + train_X_df['item_category_id']
-    test_X_df['shop_category_id'] = test_X_df['shop_id'] * 100 + test_X_df['item_category_id']
-    unique_ids_dict['shop_category_id'] = list(
-        set(train_X_df.item_shop_id.values).union(set(test_X_df.item_shop_id.values)))
-
-    train_X_df.drop(['item_shop_id', 'shop_category_id'], axis=1, inplace=True)
-    test_X_df.drop(['item_shop_id', 'shop_category_id'], axis=1, inplace=True)
-
-    return unique_ids_dict
-
-
-def change_encoding_df_to_dict(unique_ids_dict):
-    for col in ['item_id', 'shop_id', 'item_category_id', 'item_shop_id', 'shop_category_id']:
-        df = mean_encodings.pop(col).stack().to_frame('item_cnt_month').reset_index()
-        col_dbn = col + '_dbn'
-        df[col_dbn] = df[col] * 100 + df['date_block_num']
-        encoding_dict = df.set_index(col_dbn)['item_cnt_month'].to_dict()
-        unique_ids = unique_ids_dict[col]
-        fill_missing_keys(encoding_dict, unique_ids)
-        del df
-        mean_encodings[col_dbn] = encoding_dict
-        print(col, ' converted to dict')
-
-
-def add_id_dbn_col(df, col):
-    df[col + '_dbn'] = df[col] * 100 + df['date_block_num']
-
-
-def apply_item_encoding(df):
-    add_id_dbn_col(df, 'item_id')
-    item_encoding = mean_encodings['item_id_dbn']
-    df['item_id_mean_enc'] = df['item_id_dbn'].map(item_encoding).astype(np.float32)
-    df.drop('item_id_dbn', axis=1, inplace=True)
-
-
-def apply_item_category_encoding(df):
-    add_id_dbn_col(df, 'item_category_id')
-    item_category_encoding = mean_encodings['item_category_id_dbn']
-    df['item_category_id_mean_enc'] = df['item_category_id_dbn'].map(item_category_encoding).astype(np.float32)
-    df.drop('item_category_id_dbn', axis=1, inplace=True)
-
-
-def apply_shop_encoding(df):
-    add_id_dbn_col(df, 'shop_id')
-    shop_encoding = mean_encodings['shop_id_dbn']
-    df['shop_id_mean_enc'] = df['shop_id_dbn'].map(shop_encoding).astype(np.float32)
-    df.drop('shop_id_dbn', axis=1, inplace=True)
-
-
-def apply_item_shop_encoding(df):
-    item_shop_encoding = mean_encodings['item_shop_id_dbn']
-    df['item_shop_id'] = df['item_id'] * 100 + df['shop_id']
-    add_id_dbn_col(df, 'item_shop_id')
-
-    df['item_shop_id_mean_enc'] = df['item_shop_id_dbn'].map(item_shop_encoding).astype(np.float32)
-    df.drop(['item_shop_id', 'item_shop_id_dbn'], axis=1, inplace=True)
-
-
-def apply_shop_category_encoding(df):
-    shop_category_encoding = mean_encodings['shop_category_id_dbn']
-    df['shop_category_id'] = df['shop_id'] * 100 + df['item_category_id']
-    add_id_dbn_col(df, 'shop_category_id')
-    df['shop_category_id_mean_enc'] = df['shop_category_id_dbn'].map(shop_category_encoding).astype(np.float32)
-    df.drop(['shop_category_id', 'shop_category_id_dbn'], axis=1, inplace=True)
-
-
-def apply_mean_encoding(df):
-    apply_item_encoding(df)
-    print("item encoding applied")
-    apply_item_category_encoding(df)
-    print("category encoding applied")
-    apply_shop_encoding(df)
-    print("shop encoding applied")
-    apply_item_shop_encoding(df)
-    print("item shop encoding applied")
-    apply_shop_category_encoding(df)
-    print("shop category encoding applied")
-
-
-mean_encodings = rolling_mean_encoding(sales_df)
-unique_ids_dict = find_unique_ids(X_df, test_X_df)
-change_encoding_df_to_dict(unique_ids_dict)
+    combined_sales_df.sort_index(inplace=True)
+    combined_sales_df.set_index('index', inplace=True)
