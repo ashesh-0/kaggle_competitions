@@ -9,7 +9,7 @@ from id_features import IdFeatures
 class ModelData:
     EPSILON = 1e-4
 
-    def __init__(self, sales_df, items_df, category_en, shop_name_en, item_name_en, num_clusters=(4, 4)):
+    def __init__(self, sales_df, items_df, category_en, shop_name_en, item_name_en):
         self._sales_df = sales_df
         self._items_df = items_df
         self._category_en = category_en
@@ -24,7 +24,7 @@ class ModelData:
 
         # orig_item_id is needed in id_features.
         self._sales_df['orig_item_id'] = self._sales_df['item_id']
-        self._id_features = IdFeatures(self._sales_df, self._items_df, num_clusters=num_clusters)
+        self._id_features = IdFeatures(self._sales_df, self._items_df)
         # self._text_features = TextFeatures(category_en, shop_name_en)
 
     def get_train_X_y(self):
@@ -54,18 +54,6 @@ class ModelData:
         # add first month related features for item_id and shop_id jointly
         X_df = self._id_features.get_fm_features(X_df, item_id_and_shop_id=True)
 
-        # Adding text features.
-        # shop_name_features_df = X_df['shop_id'].apply(self._text_features.get_shop_feature_series)
-        # category_name_features_df = X_df['item_category_id'].apply(self._text_features.get_category_feature_series)
-        # print('Text features fetched')
-        # X_df = pd.concat([X_df, shop_name_features_df, category_name_features_df], axis=1)
-        # print('Text features added')
-
-        X_df['item_id_sorted'] = X_df['item_id'].map(
-            self._id_features.transform_item_id_dict()).fillna(-1000).astype('int32')
-        X_df['shop_id_sorted'] = X_df['shop_id'].map(
-            self._id_features.transform_shop_id_dict()).fillna(-1000).astype('int32')
-
         print('Id features added')
         return X_df
 
@@ -93,7 +81,7 @@ class ModelData:
         assert sales_test_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
 
         test_dbn = get_date_block_num(test_datetime)
-        recent_dbn = test_dbn - 5
+        recent_dbn = test_dbn - 20
         recent_sales_df = self._sales_df[(self._sales_df.date_block_num >= recent_dbn)
                                          & (self._sales_df.date_block_num < test_dbn)]
 
