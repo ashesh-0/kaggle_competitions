@@ -1,6 +1,7 @@
 import numpy as np
 from numeric_utils import compute_concurrently
 from numeric_rolling_features import nmonths_features
+from price_features import get_price_features
 
 
 def get_y(sales_df):
@@ -62,17 +63,10 @@ class NumericFeatures:
         # assert sales_df[sales_df.item_id.isin([83, 173])].empty
 
         df = get_numeric_rolling_feature_df(sales_df)
+        print('Numeric rolling feature added.')
 
-        df['price_category'] = np.log1p(sales_df['item_price']).astype(int)
-        df['price_sub_category'] = (np.log1p(sales_df['item_price']) - df['price_category']).fillna(0)
-        amount = sales_df['item_price'] * sales_df['item_cnt_day']
-        amount.loc[amount < 0] = 0
-
-        df['log_dollar_value'] = np.log1p(amount)
-
-        # assert df[df.item_id.isin([83, 173])].empty
-        print('Numeric numeric rolling feature computation is complete.')
-        df.reset_index(inplace=True)
-        df.set_index('index', inplace=True)
+        # price features
+        df = get_price_features(sales_df, df)
+        print('Price features added')
 
         return df
