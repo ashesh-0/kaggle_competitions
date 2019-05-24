@@ -4,6 +4,8 @@ from datetime import datetime
 from numeric_utils import get_date_block_num
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
+from lagged_features import add_lagged_features
+from price_features import get_price_features
 
 
 class ModelData:
@@ -55,6 +57,11 @@ class ModelData:
         X_df = self._id_features.get_fm_features(X_df, item_id_and_shop_id=True)
 
         print('Id features added')
+
+        # lagged features added
+        X_df = add_lagged_features(X_df, 'item_cnt_day_1M_sum')
+        print('Lagged features added')
+
         return X_df
 
     def get_test_X(self, sales_test_df, test_datetime: datetime, transform_missing_item_ids=False):
