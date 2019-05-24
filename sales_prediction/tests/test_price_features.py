@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from price_features import get_price_features
+from price_features import get_price_features, get_dollar_value_features
 
 
 def dummy_data():
@@ -53,6 +53,21 @@ def test_price_features_should_work_for_future_month():
     assert new_X_df.loc[idx2, 'last_item_price'] == 100
 
 
+def test_dollar_value_features():
+    sales_df = dummy_data()
+    sales_df['item_price'] = (sales_df['item_price'] / sales_df['item_cnt_day']).fillna(0)
+    X_df = sales_df.copy()
+    X_df['f1'] = np.random.rand(X_df.shape[0])
+    X_df['f2'] = np.random.rand(X_df.shape[0])
+
+    # this ensures that we ignore the X_df's price data.
+    X_df['item_price'] = np.random.rand(X_df.shape[0])
+    orig_X_df_index = X_df.index
+
+    new_X_df = get_dollar_value_features(sales_df, X_df)
+    _test_price_features(sales_df, X_df, new_X_df, orig_X_df_index, 'dollar_value')
+
+
 def test_price_features():
     sales_df = dummy_data()
     X_df = sales_df.copy()
@@ -61,40 +76,48 @@ def test_price_features():
 
     # this ensures that we ignore the X_df's price data.
     X_df['item_price'] = np.random.rand(X_df.shape[0])
-    orig_index = X_df.index
+    orig_X_df_index = X_df.index
 
     new_X_df = get_price_features(sales_df, X_df)
+    _test_price_features(sales_df, X_df, new_X_df, orig_X_df_index, 'item_price')
+
+
+def _test_price_features(sales_df, X_df, new_X_df, orig_X_df_index, price_col):
     # index is same.
     assert new_X_df.index.equals(X_df.index)
-    assert orig_index.equals(new_X_df.index)
+    assert orig_X_df_index.equals(new_X_df.index)
 
     cols = X_df.columns.tolist()
     # old data is same.
     assert new_X_df[cols].equals(X_df[cols])
 
+    std_col = 'std_' + price_col
+    avg_col = 'avg_' + price_col
+    last_col = 'last_' + price_col
+
     # first month has useless values.
-    assert all(new_X_df.iloc[:5]['std_item_price'].unique() == -10)
-    assert all(new_X_df.iloc[:5]['avg_item_price'].unique() == -10)
-    assert all(new_X_df.iloc[:5]['last_item_price'].unique() == -10)
+    assert all(new_X_df.iloc[:5][std_col].unique() == -10)
+    assert all(new_X_df.iloc[:5][avg_col].unique() == -10)
+    assert all(new_X_df.iloc[:5][last_col].unique() == -10)
 
     # ignoring zero sales entries.
-    assert new_X_df.iloc[5]['std_item_price'] == 0
-    assert new_X_df.iloc[5]['avg_item_price'] == 150
-    assert new_X_df.iloc[5]['last_item_price'] == 150
+    assert new_X_df.iloc[5][std_col] == 0
+    assert new_X_df.iloc[5][avg_col] == 150
+    assert new_X_df.iloc[5][last_col] == 150
 
-    assert new_X_df.iloc[6]['std_item_price'] == np.float32(np.std([200, 160], ddof=1))
-    assert new_X_df.iloc[6]['avg_item_price'] == 180
-    assert new_X_df.iloc[6]['last_item_price'] == 160
+    assert new_X_df.iloc[6][std_col] == np.float32(np.std([200, 160], ddof=1))
+    assert new_X_df.iloc[6][avg_col] == 180
+    assert new_X_df.iloc[6][last_col] == 160
 
     # ignoring zero sales entries.
-    assert new_X_df.iloc[7]['std_item_price'] == 0
-    assert new_X_df.iloc[7]['avg_item_price'] == 150
-    assert new_X_df.iloc[7]['last_item_price'] == 150
+    assert new_X_df.iloc[7][std_col] == 0
+    assert new_X_df.iloc[7][avg_col] == 150
+    assert new_X_df.iloc[7][last_col] == 150
 
-    assert new_X_df.iloc[8]['std_item_price'] == 0
-    assert new_X_df.iloc[8]['avg_item_price'] == 300
-    assert new_X_df.iloc[8]['last_item_price'] == 300
+    assert new_X_df.iloc[8][std_col] == 0
+    assert new_X_df.iloc[8][avg_col] == 300
+    assert new_X_df.iloc[8][last_col] == 300
 
-    assert new_X_df.iloc[9]['std_item_price'] == np.float32(np.std([200, 160], ddof=1))
-    assert new_X_df.iloc[9]['avg_item_price'] == 180
-    assert new_X_df.iloc[9]['last_item_price'] == 180
+    assert new_X_df.iloc[9][std_col] == np.float32(np.std([200, 160], ddof=1))
+    assert new_X_df.iloc[9][avg_col] == 180
+    assert new_X_df.iloc[9][last_col] == 180
