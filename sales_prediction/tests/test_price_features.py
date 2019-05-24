@@ -85,7 +85,7 @@ def test_price_features():
 def _test_price_features(sales_df, X_df, new_X_df, orig_X_df_index, price_col):
 
     assert not new_X_df.isna().any().any()
-    assert not np.isinfinite(new_X_df.values).any()
+    assert np.isfinite(new_X_df.values).all()
     # index is same.
     assert new_X_df.index.equals(X_df.index)
     assert orig_X_df_index.equals(new_X_df.index)
