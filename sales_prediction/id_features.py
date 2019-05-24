@@ -1,14 +1,5 @@
 import pandas as pd
 
-# DefaultValue = -1000
-# class DefaultDict(dict):
-#     def __init__(self, *args, **kwargs):
-#         dict.__init__(self, *args, **kwargs)
-#         self._default = DefaultValue
-
-#     def __getitem__(self, idx):
-#         return dict.get(self, idx, self._default)
-
 
 class IdFeatures:
     ABSENT_ITEM_ID_VALUE = -1000

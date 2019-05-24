@@ -5,7 +5,6 @@ from numeric_utils import get_date_block_num
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
 from lagged_features import add_lagged_features
-from price_features import get_price_features
 
 
 class ModelData:
