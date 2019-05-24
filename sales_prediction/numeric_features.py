@@ -1,4 +1,5 @@
 import numpy as np
+
 from numeric_utils import compute_concurrently
 from numeric_rolling_features import nmonths_features
 from price_features import get_price_features
@@ -66,7 +67,9 @@ class NumericFeatures:
         print('Numeric rolling feature added.')
 
         # price features
+        df['date_block_num'] = sales_df['date_block_num'].astype('uint8')
         df = get_price_features(sales_df, df)
+        df.drop('date_block_num', axis=1, inplace=True)
         print('Price features added')
 
         return df

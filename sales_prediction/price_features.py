@@ -9,18 +9,21 @@ def get_price_features(sales_df, X_df):
     sales_df is monthly
     """
     # use original sales data.
+    msg = 'X_df has >1 recent months data. To speed up the process, we are just handling 1 month into the future case'
+    assert X_df.date_block_num.max() <= sales_df.date_block_num.max() + 1, msg
+
     sales_df = sales_df[sales_df.item_cnt_day > 0].copy()
     sales_df.loc[sales_df.item_price < 0, 'item_price'] = 0
 
     grp = sales_df.groupby(['item_id', 'date_block_num'])['item_price']
     # std for 1 entry should be 0. std for 0 entry should be -10
-    std = grp.std().fillna(0).unstack().sort_index(axis=1).fillna(
-        method='ffill', axis=1).shift(
-            1, axis=1).fillna(INVALID_VALUE)
+    std = grp.std().fillna(0).unstack()
+    std[sales_df.date_block_num.max() + 1] = 0
+    std = std.sort_index(axis=1).fillna(method='ffill', axis=1).shift(1, axis=1).fillna(INVALID_VALUE)
 
-    avg_price = grp.mean().unstack().sort_index(axis=1).fillna(
-        method='ffill', axis=1).shift(
-            1, axis=1).fillna(INVALID_VALUE)
+    avg_price = grp.mean().unstack()
+    avg_price[sales_df.date_block_num.max() + 1] = 0
+    avg_price = avg_price.sort_index(axis=1).fillna(method='ffill', axis=1).shift(1, axis=1).fillna(INVALID_VALUE)
 
     avg_price = avg_price.stack().to_frame('avg_price').reset_index()
     std = std.stack().to_frame('price_std').reset_index()

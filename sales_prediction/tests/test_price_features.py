@@ -22,14 +22,35 @@ def dummy_data():
         [14, 2, 0, 100, 6],
         [14, 3, 2, 250, 7],
         [14, 2, 1, 180, 5],
-        #
-        [15, 3, 2, 380, 3],
     ]
     index = list(range(len(train_data)))
     np.random.shuffle(index)
     sales_df = pd.DataFrame(train_data, columns=columns, index=index)
 
     return sales_df
+
+
+def test_price_features_should_work_for_future_month():
+    """
+    sales_df has maximum date_block_num of 25, then X_df's entries with date_block_num of 26 should be handled properly.
+    """
+    sales_df = dummy_data()
+    X_df = sales_df.copy()
+    new_dbn = X_df.date_block_num.max() + 1
+    idx1 = X_df.index.max() + 1
+    X_df.loc[idx1, :] = [new_dbn, 1, 0, 180, 5]
+
+    idx2 = X_df.index.max() + 1
+    X_df.loc[idx2, :] = [new_dbn, 2, 0, 180, 5]
+
+    new_X_df = get_price_features(sales_df, X_df)
+    assert new_X_df.loc[idx1, 'avg_price'] == 130
+    assert new_X_df.loc[idx1, 'price_std'] == np.float32(np.std([100, 160], ddof=1))
+    assert new_X_df.loc[idx1, 'last_item_price'] == 130
+
+    assert new_X_df.loc[idx2, 'avg_price'] == 130
+    assert new_X_df.loc[idx2, 'price_std'] == np.float32(np.std([100, 160], ddof=1))
+    assert new_X_df.loc[idx2, 'last_item_price'] == 100
 
 
 def test_price_features():
