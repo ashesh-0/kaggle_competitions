@@ -44,12 +44,12 @@ def test_price_features_should_work_for_future_month():
     X_df.loc[idx2, :] = [new_dbn, 2, 0, 180, 5]
 
     new_X_df = get_price_features(sales_df, X_df)
-    assert new_X_df.loc[idx1, 'avg_price'] == 130
-    assert new_X_df.loc[idx1, 'price_std'] == np.float32(np.std([100, 160], ddof=1))
+    assert new_X_df.loc[idx1, 'avg_item_price'] == 130
+    assert new_X_df.loc[idx1, 'std_item_price'] == np.float32(np.std([100, 160], ddof=1))
     assert new_X_df.loc[idx1, 'last_item_price'] == 130
 
-    assert new_X_df.loc[idx2, 'avg_price'] == 130
-    assert new_X_df.loc[idx2, 'price_std'] == np.float32(np.std([100, 160], ddof=1))
+    assert new_X_df.loc[idx2, 'avg_item_price'] == 130
+    assert new_X_df.loc[idx2, 'std_item_price'] == np.float32(np.std([100, 160], ddof=1))
     assert new_X_df.loc[idx2, 'last_item_price'] == 100
 
 
@@ -73,28 +73,28 @@ def test_price_features():
     assert new_X_df[cols].equals(X_df[cols])
 
     # first month has useless values.
-    assert all(new_X_df.iloc[:5]['price_std'].unique() == -10)
-    assert all(new_X_df.iloc[:5]['avg_price'].unique() == -10)
+    assert all(new_X_df.iloc[:5]['std_item_price'].unique() == -10)
+    assert all(new_X_df.iloc[:5]['avg_item_price'].unique() == -10)
     assert all(new_X_df.iloc[:5]['last_item_price'].unique() == -10)
 
     # ignoring zero sales entries.
-    assert new_X_df.iloc[5]['price_std'] == 0
-    assert new_X_df.iloc[5]['avg_price'] == 150
+    assert new_X_df.iloc[5]['std_item_price'] == 0
+    assert new_X_df.iloc[5]['avg_item_price'] == 150
     assert new_X_df.iloc[5]['last_item_price'] == 150
 
-    assert new_X_df.iloc[6]['price_std'] == np.float32(np.std([200, 160], ddof=1))
-    assert new_X_df.iloc[6]['avg_price'] == 180
+    assert new_X_df.iloc[6]['std_item_price'] == np.float32(np.std([200, 160], ddof=1))
+    assert new_X_df.iloc[6]['avg_item_price'] == 180
     assert new_X_df.iloc[6]['last_item_price'] == 160
 
     # ignoring zero sales entries.
-    assert new_X_df.iloc[7]['price_std'] == 0
-    assert new_X_df.iloc[7]['avg_price'] == 150
+    assert new_X_df.iloc[7]['std_item_price'] == 0
+    assert new_X_df.iloc[7]['avg_item_price'] == 150
     assert new_X_df.iloc[7]['last_item_price'] == 150
 
-    assert new_X_df.iloc[8]['price_std'] == 0
-    assert new_X_df.iloc[8]['avg_price'] == 300
+    assert new_X_df.iloc[8]['std_item_price'] == 0
+    assert new_X_df.iloc[8]['avg_item_price'] == 300
     assert new_X_df.iloc[8]['last_item_price'] == 300
 
-    assert new_X_df.iloc[9]['price_std'] == np.float32(np.std([200, 160], ddof=1))
-    assert new_X_df.iloc[9]['avg_price'] == 180
+    assert new_X_df.iloc[9]['std_item_price'] == np.float32(np.std([200, 160], ddof=1))
+    assert new_X_df.iloc[9]['avg_item_price'] == 180
     assert new_X_df.iloc[9]['last_item_price'] == 180
