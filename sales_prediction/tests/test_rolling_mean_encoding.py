@@ -55,3 +55,6 @@ def test_rolling_mean_encoding_does_not_change_index_ordering_and_has_correct_va
     assert max(abs(sales_df['item_shop_id_enc'].values - [-10, -10, -10, -10, -10, -10, -10, 7 / 1])) < 1e-5
 
     assert max(abs(sales_df['shop_category_id_enc'].values - [-10, -10, -10, -10, 4 / 1, -10, -10, 7 / 1])) < 1e-5
+
+    import pdb
+    pdb.set_trace()
