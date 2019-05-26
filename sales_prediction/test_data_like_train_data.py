@@ -1,4 +1,4 @@
-from constants import TEST_LIKE_SALES_FKEY, TEST_LIKE_SALES_FPATH
+from constants import TEST_LIKE_SALES_FKEY, TEST_LIKE_SALES_FPATH, SALES_FPATH
 import pandas as pd
 import numpy as np
 
@@ -162,7 +162,7 @@ def make_train_have_similar_zeroed_entries_as_test(train_df, train_y_zero_count,
 
 
 if __name__ == '__main__':
-    df = pd.read_csv('../input/sales_train.csv')
+    df = pd.read_csv(SALES_FPATH)
     df_shrinked = shrink_train_data(df, 32)
     print('Original size:', '{}K'.format(df.shape[0] // 1000))
     print('Shrinked size:', '{}K'.format(df_shrinked.shape[0] // 1000))
