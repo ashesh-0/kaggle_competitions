@@ -11,9 +11,12 @@ First step:
     a. For generating a balanced sales dataframe, run the script "test_data_like_train_data.py" (~25 minutes)
     b. For creating a pre-processed train data, run the script "model_data.py" (~ 1 hour)
     c. Notebook "Catboost Model.ipynb" (~15 minutes)
+3. Run 	Data Analysis.ipynb for EDA.
 
 
-Step by step procedure is
-1. We first add zero sales entries in sales.csv so that it matches the distribution of monthly sales in test data.
+
+Logically speaking, following is the step by step process which the code follows.
+1. We first add zero sales entries in sales.csv so that it matches the distribution of monthly sales in test data. We
+    know the mean value of monthly sales in test from leaderboard probing.
 2. We then create features on top of the sales.
 3. We fit a Catboost model.
