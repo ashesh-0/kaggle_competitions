@@ -1,6 +1,6 @@
-TEST_LIKE_SALES_FPATH = 'train_with_zero.hdf'
+TEST_LIKE_SALES_FPATH = './preprocessed_data/train_with_zero.hdf'
 TEST_LIKE_SALES_FKEY = 'df'
-DATA_FPATH = 'DATA.hdf'
+DATA_FPATH = './preprocessed_data/DATA.hdf'
 
 COMPETITION_DATA_DIRECTORY = '../input/competitive-data-science-predict-future-sales/'
 SALES_FPATH = COMPETITION_DATA_DIRECTORY + 'sales_train.csv'
