@@ -2,7 +2,9 @@ from model_validator import ModelValidator
 from rolling_mean_encoding import rolling_mean_encoding
 import pandas as pd
 from datetime import datetime
-from constants import DATA_FPATH, TEST_LIKE_SALES_FPATH
+from constants import (DATA_FPATH, TEST_LIKE_SALES_FPATH, SALES_FPATH, ITEMS_FPATH, SHOPS_FPATH, TEST_SALES_FPATH,
+                       ITEM_CATEGORIES_FPATH)
+
 from numeric_utils import get_date_block_num
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
@@ -142,10 +144,10 @@ def get_val_dfs(skip_last_n_months: int):
 
 if __name__ == '__main__':
     sales = pd.read_hdf(TEST_LIKE_SALES_FPATH, 'df')
-    items = pd.read_csv('../input/competitive-data-science-predict-future-sales/items.csv')
-    shops = pd.read_csv('../input/competitive-data-science-predict-future-sales/shops.csv')
-    categ = pd.read_csv('../input/competitive-data-science-predict-future-sales/item_categories.csv')
-    test = pd.read_csv('../input/competitive-data-science-predict-future-sales/test.csv')
+    items = pd.read_csv(ITEMS_FPATH)
+    shops = pd.read_csv(SHOPS_FPATH)
+    categ = pd.read_csv(ITEM_CATEGORIES_FPATH)
+    test = pd.read_csv(TEST_SALES_FPATH)
 
     # Cleaning up
     sales.loc[sales['item_price'] < 0, 'item_price'] = 0
