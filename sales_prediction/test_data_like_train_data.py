@@ -1,4 +1,4 @@
-import calendar
+from constants import TEST_LIKE_SALES_FKEY, TEST_LIKE_SALES_FPATH
 import pandas as pd
 import numpy as np
 
@@ -161,22 +161,25 @@ def make_train_have_similar_zeroed_entries_as_test(train_df, train_y_zero_count,
     return new_train_df
 
 
-# if __name__ == '__main__':
-#     df = pd.read_csv('data/sales_train.csv')
-#     monthly_sales = df.groupby(['date_block_num', 'item_id', 'shop_id'])['item_cnt_day'].sum()
+if __name__ == '__main__':
+    df = pd.read_csv('../input/sales_train.csv')
+    df_shrinked = shrink_train_data(df, 32)
+    print('Original size:', '{}K'.format(df.shape[0] // 1000))
+    print('Shrinked size:', '{}K'.format(df_shrinked.shape[0] // 1000))
+    df = df_shrinked
 
-#     s_df = shrink_train_data(df, 6)
-#     monthly_sales_s = s_df.groupby(['date_block_num', 'item_id', 'shop_id'])['item_cnt_day'].sum()
-#     assert monthly_sales_s.equals(monthly_sales)
+    monthly_sales = df.groupby(['date_block_num', 'item_id', 'shop_id'])['item_cnt_day'].sum()
+    zero_fraction = 5
+    output_df = make_train_have_similar_zeroed_entries_as_test(df, (monthly_sales > 0).sum(), df.shape[0],
+                                                               zero_fraction)
 
-#     zero_fraction = 6
-#     output_df = make_train_have_similar_zeroed_entries_as_test(s_df, (monthly_sales > 0).sum(), df.shape[0],
-#                                                                zero_fraction)
+    monthly_sales_after = output_df.groupby(['date_block_num', 'item_id', 'shop_id'])['item_cnt_day'].sum()
 
-#     monthly_sales_after = output_df.groupby(['date_block_num', 'item_id', 'shop_id'])['item_cnt_day'].sum()
-#     print('Aiming for fraction to be ', zero_fraction)
-#     print('Original zero fraction',
-#           monthly_sales[monthly_sales <= 0].shape[0] / monthly_sales[monthly_sales > 0].shape[0])
-#     print(
-#         'New Zero fraction',
-#         monthly_sales_after[monthly_sales_after <= 0].shape[0] / monthly_sales_after[monthly_sales_after > 0].shape[0])
+    print('Aiming for fraction to be ', zero_fraction)
+    print('Original zero fraction',
+          monthly_sales[monthly_sales <= 0].shape[0] / monthly_sales[monthly_sales > 0].shape[0])
+    print(
+        'New Zero fraction',
+        monthly_sales_after[monthly_sales_after <= 0].shape[0] / monthly_sales_after[monthly_sales_after > 0].shape[0])
+
+    output_df.to_hdf(TEST_LIKE_SALES_FPATH, TEST_LIKE_SALES_FKEY)

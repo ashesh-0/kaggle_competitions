@@ -1,0 +1,9 @@
+TEST_LIKE_SALES_FPATH = 'train_with_zero.hdf'
+TEST_LIKE_SALES_FKEY = 'df'
+DATA_FPATH = 'DATA.hdf'
+
+COMPETITION_DATA_DIRECTORY = '../input/competitive-data-science-predict-future-sales/'
+SALES_FPATH = COMPETITION_DATA_DIRECTORY + 'sales_train.csv'
+ITEMS_FPATH = COMPETITION_DATA_DIRECTORY + 'items.csv'
+SHOPS_FPATH = COMPETITION_DATA_DIRECTORY + 'shops.csv'
+TEST_SALES_FPATH = COMPETITION_DATA_DIRECTORY + 'test.csv'

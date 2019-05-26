@@ -1,6 +1,8 @@
+from model_validator import ModelValidator
+from rolling_mean_encoding import rolling_mean_encoding
 import pandas as pd
 from datetime import datetime
-
+from constants import DATA_FPATH, TEST_LIKE_SALES_FPATH
 from numeric_utils import get_date_block_num
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
@@ -10,12 +12,9 @@ from lagged_features import add_lagged_features
 class ModelData:
     EPSILON = 1e-4
 
-    def __init__(self, sales_df, items_df, category_en, shop_name_en, item_name_en):
+    def __init__(self, sales_df, items_df):
         self._sales_df = sales_df
         self._items_df = items_df
-        self._category_en = category_en
-        self._shop_name_en = shop_name_en
-        self._item_name_en = item_name_en
 
         # adding items_category_id to dataframe.
         item_to_cat_dict = self._items_df.set_index('item_id')['item_category_id'].to_dict()
@@ -26,7 +25,6 @@ class ModelData:
         # orig_item_id is needed in id_features.
         self._sales_df['orig_item_id'] = self._sales_df['item_id']
         self._id_features = IdFeatures(self._sales_df, self._items_df)
-        # self._text_features = TextFeatures(category_en, shop_name_en)
 
     def get_train_X_y(self):
         print('Fetching X')
@@ -63,7 +61,7 @@ class ModelData:
 
         return X_df
 
-    def get_test_X(self, sales_test_df, test_datetime: datetime, transform_missing_item_ids=False):
+    def get_test_X(self, sales_test_df, test_datetime: datetime):
 
         item_id_original = sales_test_df['item_id'].copy()
         # adding items_category_id to dataframe.
@@ -73,12 +71,6 @@ class ModelData:
         sales_test_df['date'] = test_datetime.strftime('%d.%m.%Y')
         sales_test_df['date_block_num'] = get_date_block_num(test_datetime)
         sales_test_df['orig_item_id'] = sales_test_df['item_id']
-
-        if transform_missing_item_ids:
-            # Ensure that item_ids missing in train are replaced by nearby ids.
-            self._id_features.set_alternate_ids(self._item_name_en, sales_test_df)
-            sales_test_df['item_id'] = sales_test_df['item_id'].map(
-                self._id_features.transform_item_id_to_alternate_id_dict())
 
         sales_test_df['item_cnt_day'] = 0
         sales_test_df['item_price'] = 0
@@ -109,17 +101,92 @@ class ModelData:
         return X_df
 
 
+def mean_encoding_preprocessing(sales):
+    test_sales_df = pd.read_csv('../input/competitive-data-science-predict-future-sales/test.csv', index_col=0)
+    test_sales_df['date_block_num'] = 34
+    test_sales_df['item_cnt_day'] = 0.33
+    index_offset = sales.index.max() + 1
+    print('Offsetting test sales index by ', index_offset)
+    test_sales_df.index += index_offset
+    combined_sales_df = pd.concat(
+        [sales[['date_block_num', 'item_id', 'shop_id', 'item_cnt_day']], test_sales_df], sort=True)
+    combined_sales_df = pd.merge(
+        combined_sales_df.reset_index(), items[['item_id', 'item_category_id']], on='item_id',
+        how='left').set_index('index')
+
+    combined_sales_df = rolling_mean_encoding(combined_sales_df)
+    train_mean_encoding = combined_sales_df.loc[sales.index].copy()
+    test_mean_encoding = combined_sales_df.loc[test_sales_df.index].copy()
+    test_mean_encoding.index = test_mean_encoding.index - (sales.index.max() + 1)
+    assert test_mean_encoding.shape[0] + train_mean_encoding.shape[0] == combined_sales_df.shape[0]
+    assert (test_mean_encoding.date_block_num == 34).all()
+
+    return (train_mean_encoding, test_mean_encoding)
+
+
+def get_val_dfs(skip_last_n_months: int):
+    """
+    skip_last_n_months decides how many months prior to Nov 2015 to take as the validation data.
+    """
+    year = (1 + 33 - skip_last_n_months) // 12 + 2013
+    month = (1 + 33 - skip_last_n_months) % 12
+
+    mv = ModelValidator(sales, X_df, y_df, skip_last_n_months=skip_last_n_months)
+    val_X_ids, val_y_df = mv.get_val_data()
+    print('Before get_test_X', val_X_ids.shape, val_y_df.shape)
+    val_X_df = md.get_test_X(val_X_ids, datetime(year, month, 1))
+    assert val_X_df.index.equals(val_X_ids.index)
+    print('After get_test_X', val_X_df.shape)
+    return (val_X_df, val_y_df)
+
+
 if __name__ == '__main__':
-    from constant_lists import CATEGORIES_EN, SHOPS_EN
-    sales_df = pd.read_csv('data/sales_train.csv')
-    sales_df.loc[sales_df['item_price'] < 0, 'item_price'] = 0
+    sales = pd.read_hdf(TEST_LIKE_SALES_FPATH, 'df')
+    items = pd.read_csv('../input/competitive-data-science-predict-future-sales/items.csv')
+    shops = pd.read_csv('../input/competitive-data-science-predict-future-sales/shops.csv')
+    categ = pd.read_csv('../input/competitive-data-science-predict-future-sales/item_categories.csv')
+    test = pd.read_csv('../input/competitive-data-science-predict-future-sales/test.csv')
 
-    items_df = pd.read_csv('data/items.csv')
+    # Cleaning up
+    sales.loc[sales['item_price'] < 0, 'item_price'] = 0
+    sales.loc[sales['item_cnt_day'] > 300, 'item_cnt_day'] = 300
+    sales.loc[sales['item_cnt_day'] < 0, 'item_cnt_day'] = 0
 
-    print(sales_df.head())
-    print(items_df.head())
+    # all features other than mean encoding is handled through this class.
+    md = ModelData(sales, items)
 
-    md = ModelData(sales_df[sales_df.date_block_num > 26].copy(), items_df, CATEGORIES_EN, SHOPS_EN, [])
-    X, y = md.get_train_X_y()
-    print('Shape of X', X.shape)
-    print(X.head())
+    # get train data.
+    X_df, y_df = md.get_train_X_y()
+
+    # Get test data.
+    test_df = md.get_test_X(test, datetime(2015, 11, 1))
+
+    # Get mean encodings
+    train_mean_encoding, test_mean_encoding = mean_encoding_preprocessing(sales)
+
+    test_mean_encoding.drop(
+        ['date_block_num', 'item_cnt_day', 'item_id', 'shop_id', 'item_category_id'], axis=1, inplace=True)
+    train_mean_encoding.drop(
+        ['date_block_num', 'item_cnt_day', 'item_id', 'shop_id', 'item_category_id'], axis=1, inplace=True)
+    del combined_sales_df
+
+    X_df = pd.concat([X_df, train_mean_encoding], axis=1)
+    test_df = pd.concat([test_df, test_mean_encoding], axis=1)
+
+    # Saving train and test data to disk
+    X_df.to_hdf(DATA_FPATH, 'X')
+    y_df.to_hdf(DATA_FPATH, 'y')
+    test_df.to_hdf(DATA_FPATH, 'test_X')
+
+    # For ensuring validation data is processed in exactly the same way as test data, we generate validation data
+    # separately from train data and in the same way as test data is generated.
+    mean_encoding_columns = [c for c in X_df.columns if c[-4:] == '_enc']
+    for skip_last_n_months in range(4):
+        val_X_df, val_y_df = get_val_dfs(skip_last_n_months)
+        # add mean encoding.
+        val_X_df = pd.concat([val_X_df, X_df.loc[val_X_df.index][mean_encoding_columns]], axis=1)
+
+        val_X_key = 'val_X_{}'.format(10 - skip_last_n_months)
+        val_y_key = 'val_y_{}'.format(10 - skip_last_n_months)
+        val_X_df.to_hdf(DATA_FPATH, val_X_key)
+        val_y_df.to_hdf(DATA_FPATH, val_y_key)
