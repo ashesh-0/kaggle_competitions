@@ -12,3 +12,9 @@ ITEMS_FPATH = COMPETITION_DATA_DIRECTORY + 'items.csv'
 SHOPS_FPATH = COMPETITION_DATA_DIRECTORY + 'shops.csv'
 TEST_SALES_FPATH = COMPETITION_DATA_DIRECTORY + 'test.csv'
 ITEM_CATEGORIES_FPATH = COMPETITION_DATA_DIRECTORY + 'item_categories.csv'
+
+# Text feature are saved to this file
+TEXT_FEATURE_FPATH = 'text_features.h5'
+
+# Feature containing both text features and numeric features
+COMBINED_DATA_FPATH = 'DATA_WITH_TXT.h5'
