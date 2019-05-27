@@ -4,6 +4,9 @@ First step:
         a. COMPETITION_DATA_DIRECTORY should be the directory which has the data given in the competition
         b. Directory of DATA_FPATH,TEXT_FEATURE_FPATH,COMBINED_DATA_FPATH should be the path of the extracted preprocessed_data.
 
+# Packages needed
+Install catboost. `pip install catboost`
+
 
 1. For simply running the prediction, run the notebook FinalSubmission.ipynb (~1 minute)
 2. For running the feature generation and training, run the following in same order:
