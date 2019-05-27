@@ -10,7 +10,7 @@ Install catboost. `pip install catboost`
 1. For simply running the prediction, run the notebook FinalSubmission.ipynb (~1 minute)<br/>
 2. For running the feature generation and training, run the following in same order:<br/>
     a. For generating a balanced sales dataframe, run the script "test_data_like_train_data.py" (~25 minutes)<br/>
-    b. For creating a numeric features train data, run the script "model_data.py" (~ 1 hour)<br/>
+    b. For creating a numeric features train data, run the script "model_data.py" (~1 hour)<br/>
     c. For creating text features for item_id, shop_id and item_category_id, run TextFeatures.ipynb<br/>
     d. For creating the combined data of text and numeric features, run TextDataNumericDataCombined.ipynb<br/>
     e. For training the model, use AllDataModel.ipynb<br/>
