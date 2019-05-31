@@ -9,14 +9,16 @@ from numeric_utils import get_date_block_num
 from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
 from lagged_features import add_lagged_features
+from city_data_features import add_city_data_features
 
 
 class ModelData:
     EPSILON = 1e-4
 
-    def __init__(self, sales_df, items_df):
+    def __init__(self, sales_df, items_df, shops_df):
         self._sales_df = sales_df
         self._items_df = items_df
+        self._shops_df = shops_df
 
         # adding items_category_id to dataframe.
         item_to_cat_dict = self._items_df.set_index('item_id')['item_category_id'].to_dict()
@@ -60,6 +62,10 @@ class ModelData:
         # lagged features added
         X_df = add_lagged_features(X_df, 'item_cnt_day_1M_sum')
         print('Lagged features added')
+
+        # City related features like area, coordinate, city_id
+        X_df = add_city_data_features(X_df, self._shops_df)
+        print('City data features added')
 
         return X_df
 

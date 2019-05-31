@@ -1,5 +1,5 @@
 # Input data which is given in the competition.
-COMPETITION_DATA_DIRECTORY = './data/'
+COMPETITION_DATA_DIRECTORY = '/home/ashesh/Documents/initiatives/kaggle_competitions/sales_prediction/data/'
 SALES_FPATH = COMPETITION_DATA_DIRECTORY + 'sales_train.csv'
 ITEMS_FPATH = COMPETITION_DATA_DIRECTORY + 'items.csv'
 SHOPS_FPATH = COMPETITION_DATA_DIRECTORY + 'shops.csv'

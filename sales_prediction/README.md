@@ -1,5 +1,5 @@
 # Steps to run the code:
-1. Unzip preprocessed_data.zip
+1. Unzip the code.
 2. Appropriately set the directory in constants.py and in notebooks which you wish to run. Specifically,<br/>
     a. COMPETITION_DATA_DIRECTORY should be the directory which has the data given in the competition<br/>
     b. Directory of DATA_FPATH,TEXT_FEATURE_FPATH,COMBINED_DATA_FPATH should be the path of the extracted preprocessed_data.<br/>

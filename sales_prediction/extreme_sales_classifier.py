@@ -1,6 +1,7 @@
 """
 Classifies whether next month sales are 0/20
 """
+import gc
 from tqdm import tqdm_notebook
 import numpy as np
 import pandas as pd
@@ -104,15 +105,18 @@ class ExtremeSalesClassifier:
         high_sales_feature = np.zeros(index.shape[0])
         low_sales_feature = np.zeros(index.shape[0])
         index_idx = 0
-        for train_end_dbn in tqdm_notebook(range(starting_dbn, self._last_train_dbn)):
+        for train_end_dbn in tqdm_notebook(range(starting_dbn, self._last_train_dbn, 2)):
             X_tr = self.get_X(self._X[self._X.date_block_num <= train_end_dbn])
             X_val = self.get_X(self._X[self._X.date_block_num == 1 + train_end_dbn])
             X_test = self.get_X(self._X[self._X.date_block_num == 2 + train_end_dbn])
 
             if index_idx == 0:
-                index_idx = X_tr.shape[0] + X_val.shape[0]
+                index_idx = X_tr.shape[0]
 
-            index[index_idx:index_idx + X_test.shape[0]] = X_test.index.values
+            index_val_end_idx = index_idx + X_val.shape[0]
+            index_test_end_idx = index_val_end_idx + X_test.shape[0]
+            index[index_idx:index_val_end_idx] = X_val.index.values
+            index[index_val_end_idx:index_test_end_idx] = X_test.index.values
 
             y_tr_high = self._y.loc[X_tr.index].copy()
             y_val_high = self._y.loc[X_val.index].copy()
@@ -122,9 +126,11 @@ class ExtremeSalesClassifier:
             print('Training for date_block_num', train_end_dbn)
             model_high = get_model(X_tr, y_tr_high, self._high_kwargs, X_val, y_val_high)
 
-            high_sales_feature[index_idx:index_idx + X_test.shape[0]] = model_high.predict_proba(X_test)[:, 1]
+            high_sales_feature[index_idx:index_val_end_idx] = model_high.predict_proba(X_val)[:, 1]
+            high_sales_feature[index_val_end_idx:index_test_end_idx] = model_high.predict_proba(X_test)[:, 1]
 
             del y_tr_high, y_val_high, model_high
+            gc.collect()
 
             y_tr_low = self._y.loc[X_tr.index].copy()
             y_val_low = self._y.loc[X_val.index].copy()
@@ -134,9 +140,15 @@ class ExtremeSalesClassifier:
 
             model_low = get_model(X_tr, y_tr_low, self._low_kwargs, X_val, y_val_low)
 
-            low_sales_feature[index_idx:index_idx + X_test.shape[0]] = model_low.predict_proba(X_test)[:, 1]
-            index_idx = index_idx + X_test.shape[0]
+            low_sales_feature[index_idx:index_val_end_idx] = model_low.predict_proba(X_val)[:, 1]
+            low_sales_feature[index_val_end_idx:index_test_end_idx] = model_low.predict_proba(X_test)[:, 1]
+
+            index_idx = index_idx + X_val.shape[0] + X_test.shape[0]
+            assert index_idx == index_test_end_idx
             del y_tr_low, y_val_low, model_low
+            gc.collect()
 
         self.feature_df = pd.DataFrame(
             np.vstack([high_sales_feature, low_sales_feature]).T, index=index, columns=['high_sales', 'low_sales'])
+
+
