@@ -87,9 +87,7 @@ class ModelData:
         assert sales_test_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
 
         test_dbn = get_date_block_num(test_datetime)
-        recent_dbn = test_dbn - 20
-        recent_sales_df = self._sales_df[(self._sales_df.date_block_num >= recent_dbn)
-                                         & (self._sales_df.date_block_num < test_dbn)]
+        recent_sales_df = self._sales_df[self._sales_df.date_block_num < test_dbn]
 
         recent_sales_df = recent_sales_df.drop('shop_item_group', axis=1)
 
@@ -185,16 +183,3 @@ if __name__ == '__main__':
     X_df.to_hdf(DATA_FPATH, 'X')
     y_df.to_hdf(DATA_FPATH, 'y')
     test_df.to_hdf(DATA_FPATH, 'test_X')
-
-    # For ensuring validation data is processed in exactly the same way as test data, we generate validation data
-    # separately from train data and in the same way as test data is generated.
-    mean_encoding_columns = [c for c in X_df.columns if c[-4:] == '_enc']
-    for skip_last_n_months in range(4):
-        val_X_df, val_y_df = get_val_dfs(skip_last_n_months)
-        # add mean encoding.
-        val_X_df = pd.concat([val_X_df, X_df.loc[val_X_df.index][mean_encoding_columns]], axis=1)
-
-        val_X_key = 'val_X_{}'.format(10 - skip_last_n_months)
-        val_y_key = 'val_y_{}'.format(10 - skip_last_n_months)
-        val_X_df.to_hdf(DATA_FPATH, val_X_key)
-        val_y_df.to_hdf(DATA_FPATH, val_y_key)
