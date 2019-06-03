@@ -111,9 +111,6 @@ def get_neighbor_item_ids(
         items_text_X,
         item_to_category_id,
 ):
-    if not isinstance(item_id, int):
-        import pdb
-        pdb.set_trace()
     item_category_id = item_to_category_id[item_id]
     model = neighbors[date_block_num][item_category_id]
     if model is None:
@@ -174,9 +171,11 @@ def set_nn_feature(
 ):
     # create models for getting neighbor item_ids
     models = NNModels(items_text_data, sales_df, items_df, n_neighbors)
+    print('Models created')
 
     # get features for item ids.
     (shop_item_features, item_features) = get_nn_features_data(X_df, feature_col)
+    print('Features computed')
 
     item_to_category_id = items_df.set_index('item_id')['item_category_id'].to_dict()
 
