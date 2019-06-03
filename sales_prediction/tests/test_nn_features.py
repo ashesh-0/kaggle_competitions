@@ -172,13 +172,28 @@ def test_set_nn_feature():
         [12, 0, 7, 1.0],
     ]
     sales_df = pd.DataFrame(data, columns=columns)
-    sales_df[['item_id', 'shop_id', 'date_block_num']] = sales_df[['item_id', 'shop_id', 'date_block_num']].astype(
-        np.int32)
-    X_df = sales_df.copy()
     items_df, items_text_data = get_items_and_features()
+    sales_df = pd.merge(
+        sales_df.reset_index(), items_df[['item_id', 'item_category_id']], how='left', on='item_id').set_index('index')
+
+    sales_df[['item_id', 'shop_id', 'date_block_num',
+              'item_category_id']] = sales_df[['item_id', 'shop_id', 'date_block_num', 'item_category_id']].astype(
+                  np.int32)
+
+    X_df = sales_df.copy()
+    X_df['date_block_num'] += 1
+
+    sales_df.drop('item_category_id', axis=1, inplace=True)
 
     set_nn_feature(X_df, feature_col, items_text_data, sales_df, items_df, n_neighbors)
-    assert all(X_df[X_df.date_block_num == 11]['neighbor_item_cnt_day'].unique() == [-10])
-    assert X_df.iloc[8]['neighbor_item_cnt_day'] == (1 + 2) / 2
-    assert X_df.iloc[9]['neighbor_item_cnt_day'] == (3 + 1 + 5) / 3
-    assert X_df.iloc[10]['neighbor_item_cnt_day'] == (2 + 1) / 2
+    assert X_df[X_df.date_block_num == 11].empty
+    assert X_df.iloc[0]['neighbor_item_cnt_day'] == 2 / 1
+    assert X_df.iloc[1]['neighbor_item_cnt_day'] == 1 / 1
+    assert X_df.iloc[2]['neighbor_item_cnt_day'] == 2 / 1
+    assert X_df.iloc[3]['neighbor_item_cnt_day'] == (5 + 1) / 2
+    assert X_df.iloc[4]['neighbor_item_cnt_day'] == (5 + 3) / 2
+    assert X_df.iloc[5]['neighbor_item_cnt_day'] == (1 + 3) / 2
+    assert X_df.iloc[6]['neighbor_item_cnt_day'] == 2 / 1
+    assert X_df.iloc[7]['neighbor_item_cnt_day'] == 1 / 1
+    assert X_df.iloc[8]['neighbor_item_cnt_day'] == -10
+    assert X_df.iloc[9]['neighbor_item_cnt_day'] == -10
