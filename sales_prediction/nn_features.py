@@ -4,8 +4,9 @@ in test data. This corresponds to new item_ids.
 I've month, item_id, shop_id, item_category_id. So we can use features
 only based on this.
 """
+from multiprocessing import Pool
 from typing import List, Tuple
-from tqdm import tqdm
+from tqdm import tqdm_notebook, tqdm
 from sklearn.neighbors import NearestNeighbors
 # from multiprocessing import Pool
 import pandas as pd
@@ -31,12 +32,13 @@ def tokenizer(s):
     return tokens
 
 
-def get_existing_items(sales_df, date_block_num):
+def get_existing_items(X_df, date_block_num):
     """
     Look at past 6 months excluding this date_block_num
     """
-    dbns = list(range(date_block_num - CLUSTER_MONTH_WINDOW, date_block_num))
-    return set(sales_df[sales_df.date_block_num.isin(dbns)].item_id.unique())
+    dbns = list(range(date_block_num - CLUSTER_MONTH_WINDOW + 1, date_block_num + 1))
+    old_items = ~X_df.orig_item_id_is_fm
+    return set(X_df[(old_items) & (X_df.date_block_num.isin(dbns))].item_id.unique())
 
 
 class NNModel:
@@ -68,19 +70,17 @@ class NNModels:
         # for each category, learn a nearest neighbour on a rolling basis.
         self._metric = 'minkowski'
         self._items_text = items_text_data
-        self._sales = sales_df
         self._items = items_df
         self._n_neighbors = n_neighbors
-        self._sales = pd.merge(self._sales.reset_index(), self._items, on='item_id', how='left').set_index('index')
-        self._category_to_item_ids = self._sales.groupby('item_category_id')['item_id'].apply(set).to_dict()
+
+        sales_df = pd.merge(sales_df, self._items, on='item_id', how='left')
+        self._category_to_item_ids = sales_df.groupby('item_category_id')['item_id'].apply(set).to_dict()
         self.neighbors = {}
 
-        self.run()
-
-    def run(self):
+    def run(self, X_df):
         for dbn in range(35):
             self.neighbors[dbn] = {}
-            item_ids = get_existing_items(self._sales, dbn)
+            item_ids = get_existing_items(X_df[['item_id', 'date_block_num', 'orig_item_id_is_fm']], dbn)
             for item_category_id in self._category_to_item_ids:
                 self.neighbors[dbn][item_category_id] = None
                 cat_item_ids = list(item_ids.intersection(self._category_to_item_ids[item_category_id]))
@@ -91,9 +91,6 @@ class NNModels:
                 X = self._items_text[cat_item_ids]
                 model = NNModel(X, cat_item_ids, min(self._n_neighbors, X.shape[0]), self._metric)
                 self.neighbors[dbn][item_category_id] = model
-
-    # map : item_id_date_block_num => [item_ids]
-    # Pick the latest value
 
 
 def get_item_shop_dbn_id(item_id, shop_id, date_block_num):
@@ -130,13 +127,13 @@ def get_neighbor_item_ids(
         item_category_id,
         item_ids,
         neighbors,
-        items_text_X,
+        items_text_data,
 ):
     model = neighbors[date_block_num][item_category_id]
     if model is None:
         return [[]] * len(item_ids)
 
-    text_features = items_text_X[item_ids]
+    text_features = items_text_data[item_ids]
 
     neighbor_item_ids, _ = model.predict(text_features)
     for idx, item_id in enumerate(item_ids):
@@ -169,10 +166,10 @@ def get_one_dbn_category_feature(
         shop_item_features,
         item_features,
         neighbors,
-        items_text_X,
+        items_text_data,
 ):
     output = np.ones(len(shop_ids)) * DEFAULT_VALUE
-    neighbor_item_ids = get_neighbor_item_ids(date_block_num, item_category_id, item_ids, neighbors, items_text_X)
+    neighbor_item_ids = get_neighbor_item_ids(date_block_num, item_category_id, item_ids, neighbors, items_text_data)
     for i, shop_id_neighbors in enumerate(zip(shop_ids, neighbor_item_ids)):
         shop_id, neighbors = shop_id_neighbors
         if len(neighbors) == 0:
@@ -188,25 +185,30 @@ def set_nn_feature(
         sales_df,
         items_df,
         n_neighbors,
-        n_jobs=1,
 ):
+    assert 'orig_item_id_is_fm' in X_df
+    assert 'item_category_id' in X_df
+    assert 'item_id' in X_df
+    assert 'date_block_num' in X_df
+    assert feature_col in X_df
+
     # create models for getting neighbor item_ids
     models = NNModels(items_text_data, sales_df, items_df, n_neighbors)
+    models.run(X_df)
     print('Models created')
 
     # get features for item ids.
     (shop_item_features, item_features) = get_nn_features_data(X_df, feature_col)
     print('Features computed')
 
-    feature = np.zeros(X_df.shape[0])
+    features = np.zeros(X_df.shape[0])
     index = np.zeros(X_df.shape[0])
-    f_idx = 0
-    # pr = cProfile.Profile()
-    # pr.enable()
-    for dbn in tqdm(range(35)):
-        dbn_X = X_df[X_df.date_block_num == dbn]
+    features_idx = 0
+    for dbn in tqdm_notebook(range(35)):
+        dbn_X_df = X_df[X_df.date_block_num == dbn]
         for item_category_id in range(84):
-            temp_X = dbn_X[dbn_X.item_category_id == item_category_id]
+            temp_X = dbn_X_df[dbn_X_df.item_category_id == item_category_id]
+
             if temp_X.empty:
                 continue
 
@@ -220,17 +222,11 @@ def set_nn_feature(
                 models.neighbors,
                 items_text_data,
             )
-            feature[f_idx:f_idx + one_block_data.shape[0]] = one_block_data
-            index[f_idx:f_idx + one_block_data.shape[0]] = temp_X.index.tolist()
-            f_idx += one_block_data.shape[0]
+            features[features_idx:features_idx + one_block_data.shape[0]] = one_block_data
+            index[features_idx:features_idx + one_block_data.shape[0]] = temp_X.index.tolist()
+            features_idx += one_block_data.shape[0]
 
-    # pr.disable()
-    # sortby = 'cumulative'
-    # with open('log.txt', 'w') as stream:
-    #     ps = pstats.Stats(pr, stream=stream).sort_stats(sortby)
-    #     ps.print_stats()
-
-    X_df['neighbor_' + feature_col] = pd.Series(feature, index=index)
+    X_df['{}Neighbor_{}'.format(n_neighbors, feature_col)] = pd.Series(features, index=index).astype(np.float32)
 
 
 if __name__ == '__main__':
@@ -238,6 +234,7 @@ if __name__ == '__main__':
     items_df = pd.read_csv(ITEMS_FPATH)
     sales_df = pd.read_csv(SALES_FPATH)
     sales_df = sales_df.groupby(['item_id', 'shop_id', 'date_block_num']).last().reset_index()
+    # this is incorrect as X_df should have older data than sales_df.
     X_df = sales_df.copy()
     X_df = pd.merge(X_df, items_df[['item_id', 'item_category_id']], how='left', on='item_id')
 
