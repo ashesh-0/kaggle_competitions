@@ -1,6 +1,7 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 import pandas as pd
+import nn_features
 from nn_features import NNModels, NNModel, add_item_dbn_id, add_item_shop_dbn_id, get_neighbor_item_ids, set_nn_feature
 
 
@@ -45,6 +46,7 @@ def test_NNModel():
 
 
 def test_NNModels_should_create_one_month_lagged_models_of_one_category():
+    nn_features.CLUSTER_MONTH_WINDOW = 6
     columns = ['date_block_num', 'shop_id', 'item_id', 'item_cnt_day']
     data = [
         [11, 0, 0, 1.0],
@@ -99,6 +101,7 @@ def test_new_id_computation():
 
 
 def test_get_neighbor_item_ids():
+    nn_features.CLUSTER_MONTH_WINDOW = 6
     columns = ['date_block_num', 'shop_id', 'item_id', 'item_cnt_day']
     data = [
         [11, 0, 0, 1.0],

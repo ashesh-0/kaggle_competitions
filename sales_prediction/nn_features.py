@@ -4,19 +4,37 @@ in test data. This corresponds to new item_ids.
 I've month, item_id, shop_id, item_category_id. So we can use features
 only based on this.
 """
-from tqdm import tqdm_notebook
+from tqdm import tqdm
 from sklearn.neighbors import NearestNeighbors
 # from multiprocessing import Pool
 import pandas as pd
 import numpy as np
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+import cProfile, pstats
+
 DEFAULT_VALUE = -10
+CLUSTER_MONTH_WINDOW = 1
+
+
+def tokenizer(s):
+    tokens = re.split(' |-|/|:', s)
+    tokens = [x.strip('[(*"./)]') for x in tokens]
+    while '' in tokens:
+        tokens.remove('')
+    for word in ['and', 'for', 'of', 'the', '.', ',', '+']:
+        while word in tokens:
+            tokens.remove(word)
+
+    return tokens
 
 
 def get_existing_items(sales_df, date_block_num):
     """
     Look at past 6 months excluding this date_block_num
     """
-    dbns = list(range(date_block_num - 6, date_block_num))
+    dbns = list(range(date_block_num - CLUSTER_MONTH_WINDOW, date_block_num))
     return set(sales_df[sales_df.date_block_num.isin(dbns)].item_id.unique())
 
 
@@ -180,7 +198,11 @@ def set_nn_feature(
     item_to_category_id = items_df.set_index('item_id')['item_category_id'].to_dict()
 
     feature = np.zeros(X_df.shape[0])
-    for idx, row in tqdm_notebook(X_df.iterrows()):
+
+    pr = cProfile.Profile()
+    pr.enable()
+
+    for idx, row in tqdm(X_df.iterrows()):
         feature[idx] = get_one_row_feature(
             int(row['date_block_num']),
             int(row['item_id']),
@@ -192,4 +214,32 @@ def set_nn_feature(
             item_to_category_id,
             feature_col,
         )
+        if idx > 10_000:
+            break
+
+    pr.disable()
+    sortby = 'cumulative'
+    with open('log.txt', 'w') as stream:
+        ps = pstats.Stats(pr, stream=stream).sort_stats(sortby)
+        ps.print_stats()
+
     X_df['neighbor_' + feature_col] = feature
+
+
+if __name__ == '__main__':
+    from constants import SALES_FPATH, ITEMS_FPATH, COMPETITION_DATA_DIRECTORY
+    items_df = pd.read_csv(ITEMS_FPATH)
+    sales_df = pd.read_csv(SALES_FPATH)
+    sales_df = sales_df.groupby(['item_id', 'shop_id', 'date_block_num']).last().reset_index()
+    X_df = sales_df.copy()
+    item_names = open(COMPETITION_DATA_DIRECTORY + '/item_name.ru.en.txt', 'r').read().splitlines()
+
+    tf = TfidfVectorizer(tokenizer=tokenizer, min_df=0.0003)
+    items_text_data = tf.fit_transform(item_names)
+
+    n_neighbors = 5
+    feature_col = 'item_cnt_day'
+    X_minimal_df = X_df[['date_block_num', 'item_id', 'shop_id', feature_col]].copy()
+    X_minimal_df[['date_block_num', 'item_id', 'shop_id']] = X_minimal_df[['date_block_num', 'item_id',
+                                                                           'shop_id']].astype(np.int32)
+    set_nn_feature(X_minimal_df, feature_col, items_text_data, sales_df, items_df, n_neighbors)
