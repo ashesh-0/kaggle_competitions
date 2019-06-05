@@ -44,7 +44,7 @@ def get_existing_items(X_df, date_block_num):
 class NNModel:
     def __init__(self, item_ids_text_features, item_ids, n_neighbors, metric):
         self._item_ids = np.array(item_ids)
-        self.model = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs=1, algorithm='auto')
+        self.model = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs=4, algorithm='auto')
         self.model.fit(item_ids_text_features)
 
     def predict(self, item_id_text_feature) -> Tuple[List[List[int]], List[List[float]]]:
@@ -57,7 +57,11 @@ class NNModel:
         # getting item_ids
         neigh_ids = [list(self._item_ids[id_set]) for id_set in neighs]
 
-        neighs_dist = NN_output[0]
+        neighs_dist = [list(a) for a in NN_output[0]]
+
+        # ensuring that distances lie within [0,1]
+        assert all(min(a) >= 0 for a in neighs_dist), min([min(a) for a in neighs_dist])
+
         return (neigh_ids, neighs_dist)
 
 
@@ -135,17 +139,44 @@ def get_neighbor_item_ids(
 
     text_features = items_text_data[item_ids]
 
-    neighbor_item_ids, _ = model.predict(text_features)
+    neighbor_item_ids, neighbor_item_ids_dist = model.predict(text_features)
     for idx, item_id in enumerate(item_ids):
         if item_id in neighbor_item_ids[idx]:
-            neighbor_item_ids[idx].remove(item_id)
-            # TODO: remove from distance.
+            same_item_id_idx = neighbor_item_ids[idx].index(item_id)
+            del neighbor_item_ids[idx][same_item_id_idx]
+            del neighbor_item_ids_dist[idx][same_item_id_idx]
+            # neighbor_item_ids[idx].remove(item_id)
 
-    return neighbor_item_ids
+    return [list(zip(neighbor_item_ids[i], neighbor_item_ids_dist[i])) for i in range(len(item_ids))]
 
 
-def _get_one_row_feature(date_block_num, shop_id, shop_item_features, item_features, neighbor_item_ids, n_neighbors):
-    feature = np.zeros(len(neighbor_item_ids))
+def compute_weights(distance_arr):
+    # In general, distances have 1 as the maximum value.
+    distance_arr = [w / max(1, max(distance_arr)) for w in distance_arr]
+    weights = [1 - w for w in distance_arr]
+
+    sm = sum(weights)
+    if sm != 0:
+        weights = [w / sm for w in weights]
+    else:
+        print('Zero weights encountered in NN features')
+
+    return np.array(weights)
+
+
+def _get_one_row_feature(
+        date_block_num,
+        shop_id,
+        shop_item_features,
+        item_features,
+        neighbors,
+        n_neighbors,
+        use_weights=False,
+):
+    feature = np.zeros(len(neighbors))
+    neighbor_item_ids, neighbor_distances = zip(*neighbors)
+    # neighbor_weights = [1 - a for a in neighbor_distances]
+
     for i, n_item_id in enumerate(neighbor_item_ids):
         item_shop_dbn_id = get_item_shop_dbn_id(n_item_id, shop_id, date_block_num)
         if item_shop_dbn_id in shop_item_features:
@@ -154,6 +185,14 @@ def _get_one_row_feature(date_block_num, shop_id, shop_item_features, item_featu
             item_dbn_id = get_item_dbn_id(n_item_id, date_block_num)
             assert item_dbn_id in item_features, '{}-{} item_dbn_id not present '.format(n_item_id, date_block_num)
             feature[i] = item_features[item_dbn_id]
+
+    if use_weights:
+        output = [0] * n_neighbors
+        for i, neighbor_count in enumerate(n_neighbors):
+            weights = compute_weights(neighbor_distances[:neighbor_count])
+            output[i] = np.sum(feature[:neighbor_count] * weights)
+
+        return output
 
     return [np.mean(feature[:n]) for n in n_neighbors]
 

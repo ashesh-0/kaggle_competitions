@@ -2,7 +2,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 import pandas as pd
 import nn_features
-from nn_features import NNModels, NNModel, add_item_dbn_id, add_item_shop_dbn_id, get_neighbor_item_ids, set_nn_feature
+from nn_features import (NNModels, NNModel, add_item_dbn_id, add_item_shop_dbn_id, get_neighbor_item_ids,
+                         set_nn_feature, compute_weights)
 
 
 def dummy_items():
@@ -42,7 +43,8 @@ def test_NNModel():
     item_ids = items_df.item_id.tolist()
     i = item_ids.index(7)
     neighbour_ids, _ = model.predict(item_features[i:i + 1])
-    assert set([7, 8, 9]) == set(neighbour_ids)
+    assert len(neighbour_ids) == 1
+    assert set([7, 8, 9]) == set(neighbour_ids[0])
 
 
 def test_NNModels_should_create_one_month_lagged_models_of_one_category():
@@ -65,6 +67,12 @@ def test_NNModels_should_create_one_month_lagged_models_of_one_category():
     sales_df = pd.DataFrame(data, columns=columns)
     items_df, item_features = get_items_and_features()
     models = NNModels(item_features, sales_df, items_df, 3)
+
+    X_df = sales_df.copy()
+    X_df['orig_item_id_is_fm'] = False
+    X_df['date_block_num'] += 1
+    models.run(X_df)
+
     neighbors = models.neighbors
     for dbn in range(35):
         if dbn not in [12, 13, 14, 15, 16, 17, 18]:
@@ -120,36 +128,39 @@ def test_get_neighbor_item_ids():
     sales_df = pd.DataFrame(data, columns=columns)
     items_df, items_text_X = get_items_and_features()
     models = NNModels(items_text_X, sales_df, items_df, 4)
+    X_df = sales_df.copy()
+    X_df['orig_item_id_is_fm'] = False
+    X_df['date_block_num'] += 1
 
-    item_to_category_id = items_df.set_index('item_id')['item_category_id'].to_dict()
-    assert {1} == set(get_neighbor_item_ids(12, 0, models.neighbors, items_text_X, item_to_category_id))
-    assert {0} == set(get_neighbor_item_ids(12, 1, models.neighbors, items_text_X, item_to_category_id))
-    assert {0, 1} == set(get_neighbor_item_ids(12, 2, models.neighbors, items_text_X, item_to_category_id))
+    models.run(X_df)
 
-    assert {4, 5} == set(get_neighbor_item_ids(12, 3, models.neighbors, items_text_X, item_to_category_id))
-    assert {3, 5} == set(get_neighbor_item_ids(12, 4, models.neighbors, items_text_X, item_to_category_id))
-    assert {3, 4} == set(get_neighbor_item_ids(12, 5, models.neighbors, items_text_X, item_to_category_id))
-    assert {3, 4, 5} == set(get_neighbor_item_ids(12, 6, models.neighbors, items_text_X, item_to_category_id))
+    assert {1} == set([a[0] for a in get_neighbor_item_ids(12, 0, [0], models.neighbors, items_text_X)[0]])
+    assert {0} == set([a[0] for a in get_neighbor_item_ids(12, 0, [1], models.neighbors, items_text_X)[0]])
+    assert {0, 1} == set([a[0] for a in get_neighbor_item_ids(12, 0, [2], models.neighbors, items_text_X)[0]])
 
-    assert {8, 9} == set(get_neighbor_item_ids(12, 7, models.neighbors, items_text_X, item_to_category_id))
-    assert {9} == set(get_neighbor_item_ids(12, 8, models.neighbors, items_text_X, item_to_category_id))
-    assert {8} == set(get_neighbor_item_ids(12, 9, models.neighbors, items_text_X, item_to_category_id))
-    for dbn in range(13, 18):
-        assert {1, 2} == set(get_neighbor_item_ids(dbn, 0, models.neighbors, items_text_X, item_to_category_id))
-        assert {0, 2} == set(get_neighbor_item_ids(dbn, 1, models.neighbors, items_text_X, item_to_category_id))
-        assert {0, 1} == set(get_neighbor_item_ids(dbn, 2, models.neighbors, items_text_X, item_to_category_id))
+    assert {4, 5} == set([a[0] for a in get_neighbor_item_ids(12, 1, [3], models.neighbors, items_text_X)[0]])
+    assert {3, 5} == set([a[0] for a in get_neighbor_item_ids(12, 1, [4], models.neighbors, items_text_X)[0]])
+    assert {3, 4} == set([a[0] for a in get_neighbor_item_ids(12, 1, [5], models.neighbors, items_text_X)[0]])
+    assert {3, 4, 5} == set([a[0] for a in get_neighbor_item_ids(12, 1, [6], models.neighbors, items_text_X)[0]])
 
-        assert {4, 5, 6} == set(get_neighbor_item_ids(dbn, 3, models.neighbors, items_text_X, item_to_category_id))
-        assert {3, 5, 6} == set(get_neighbor_item_ids(dbn, 4, models.neighbors, items_text_X, item_to_category_id))
-        assert {3, 4, 6} == set(get_neighbor_item_ids(dbn, 5, models.neighbors, items_text_X, item_to_category_id))
-        assert {3, 4, 5} == set(get_neighbor_item_ids(dbn, 6, models.neighbors, items_text_X, item_to_category_id))
+    assert {8, 9} == set([a[0] for a in get_neighbor_item_ids(12, 2, [7], models.neighbors, items_text_X)[0]])
+    assert {9} == set([a[0] for a in get_neighbor_item_ids(12, 2, [8], models.neighbors, items_text_X)[0]])
+    assert {8} == set([a[0] for a in get_neighbor_item_ids(12, 2, [9], models.neighbors, items_text_X)[0]])
 
-        assert {8, 9} == set(get_neighbor_item_ids(dbn, 7, models.neighbors, items_text_X, item_to_category_id))
-        assert {7, 9} == set(get_neighbor_item_ids(dbn, 8, models.neighbors, items_text_X, item_to_category_id))
-        assert {7, 8} == set(get_neighbor_item_ids(dbn, 9, models.neighbors, items_text_X, item_to_category_id))
+
+def test_compute_weights():
+    distance = [1, 2, 3, 4]
+    w = compute_weights(distance)
+    assert (w >= 0).all()
+    assert (w <= 1).all()
+    assert abs(w.sum() == 1) <= 1e-6
+    assert w[0] > w[1]
+    assert w[1] > w[2]
+    assert w[2] > w[3]
 
 
 def test_set_nn_feature():
+    nn_features.CLUSTER_MONTH_WINDOW = 1
     feature_col = 'item_cnt_day'
     n_neighbors = [4, 1]
 
