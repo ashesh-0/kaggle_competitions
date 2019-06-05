@@ -144,7 +144,7 @@ def get_neighbor_item_ids(
     return neighbor_item_ids
 
 
-def _get_one_row_feature(date_block_num, shop_id, shop_item_features, item_features, neighbor_item_ids):
+def _get_one_row_feature(date_block_num, shop_id, shop_item_features, item_features, neighbor_item_ids, n_neighbors):
     feature = np.zeros(len(neighbor_item_ids))
     for i, n_item_id in enumerate(neighbor_item_ids):
         item_shop_dbn_id = get_item_shop_dbn_id(n_item_id, shop_id, date_block_num)
@@ -155,7 +155,7 @@ def _get_one_row_feature(date_block_num, shop_id, shop_item_features, item_featu
             assert item_dbn_id in item_features, '{}-{} item_dbn_id not present '.format(n_item_id, date_block_num)
             feature[i] = item_features[item_dbn_id]
 
-    return np.mean(feature)
+    return [np.mean(feature[:n]) for n in n_neighbors]
 
 
 def get_one_dbn_category_feature(
@@ -167,14 +167,16 @@ def get_one_dbn_category_feature(
         item_features,
         neighbors,
         items_text_data,
+        n_neighbors,
 ):
-    output = np.ones(len(shop_ids)) * DEFAULT_VALUE
+    output = np.ones((len(shop_ids), len(n_neighbors))) * DEFAULT_VALUE
     neighbor_item_ids = get_neighbor_item_ids(date_block_num, item_category_id, item_ids, neighbors, items_text_data)
     for i, shop_id_neighbors in enumerate(zip(shop_ids, neighbor_item_ids)):
         shop_id, neighbors = shop_id_neighbors
         if len(neighbors) == 0:
             continue
-        output[i] = _get_one_row_feature(date_block_num, shop_id, shop_item_features, item_features, neighbors)
+        output[i, :] = _get_one_row_feature(date_block_num, shop_id, shop_item_features, item_features, neighbors,
+                                            n_neighbors)
     return output
 
 
@@ -184,7 +186,7 @@ def set_nn_feature(
         items_text_data,
         sales_df,
         items_df,
-        n_neighbors,
+        n_neighbors: List[int],
 ):
     assert 'orig_item_id_is_fm' in X_df
     assert 'item_category_id' in X_df
@@ -193,7 +195,8 @@ def set_nn_feature(
     assert feature_col in X_df
 
     # create models for getting neighbor item_ids
-    models = NNModels(items_text_data, sales_df, items_df, n_neighbors)
+    # sometimes, we need to remove the item_id from nearest neighbors. So 1 takes care of it.
+    models = NNModels(items_text_data, sales_df, items_df, 1 + max(n_neighbors))
     models.run(X_df)
     print('Models created')
 
@@ -201,10 +204,10 @@ def set_nn_feature(
     (shop_item_features, item_features) = get_nn_features_data(X_df, feature_col)
     print('Features computed')
 
-    features = np.zeros(X_df.shape[0])
+    features = np.zeros((X_df.shape[0], len(n_neighbors)))
     index = np.zeros(X_df.shape[0])
     features_idx = 0
-    for dbn in tqdm_notebook(range(35)):
+    for dbn in tqdm(range(35)):
         dbn_X_df = X_df[X_df.date_block_num == dbn]
         for item_category_id in range(84):
             temp_X = dbn_X_df[dbn_X_df.item_category_id == item_category_id]
@@ -221,12 +224,15 @@ def set_nn_feature(
                 item_features,
                 models.neighbors,
                 items_text_data,
+                n_neighbors,
             )
-            features[features_idx:features_idx + one_block_data.shape[0]] = one_block_data
+            features[features_idx:features_idx + one_block_data.shape[0], :] = one_block_data
             index[features_idx:features_idx + one_block_data.shape[0]] = temp_X.index.tolist()
             features_idx += one_block_data.shape[0]
 
-    X_df['{}Neighbor_{}'.format(n_neighbors, feature_col)] = pd.Series(features, index=index).astype(np.float32)
+    for i, neighbor_sz in enumerate(n_neighbors):
+        col = '{}Neighbor_{}'.format(neighbor_sz, feature_col)
+        X_df[col] = pd.Series(features[:, i], index=index).astype(np.float32)
 
 
 if __name__ == '__main__':
@@ -243,9 +249,10 @@ if __name__ == '__main__':
     tf = TfidfVectorizer(tokenizer=tokenizer, min_df=0.0003)
     items_text_data = tf.fit_transform(item_names)
 
-    n_neighbors = 5
+    n_neighbors = [2, 5]
     feature_col = 'item_cnt_day'
     X_minimal_df = X_df[['date_block_num', 'item_id', 'shop_id', 'item_category_id', feature_col]].copy()
     X_minimal_df[['date_block_num', 'item_id', 'shop_id']] = X_minimal_df[['date_block_num', 'item_id',
                                                                            'shop_id']].astype(np.int32)
+    X_minimal_df['orig_item_id_is_fm'] = False
     set_nn_feature(X_minimal_df, feature_col, items_text_data, sales_df, items_df, n_neighbors)

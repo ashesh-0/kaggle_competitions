@@ -25,3 +25,7 @@ Logically speaking, following is the step by step process which the code follows
 2. We then create features on top of the sales. They include lagged features, rolling features, oldness of shops, items,
     item shop pairs, text features from name of shops, items and item_categories.
 3. We fit a Catboost model.
+
+
+# Best configuration:
+ 1. Nearest neighbours [2,4,6,8] with no weights.

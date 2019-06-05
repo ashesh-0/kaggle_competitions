@@ -151,7 +151,7 @@ def test_get_neighbor_item_ids():
 
 def test_set_nn_feature():
     feature_col = 'item_cnt_day'
-    n_neighbors = 4
+    n_neighbors = [4, 1]
 
     columns = ['date_block_num', 'shop_id', 'item_id', 'item_cnt_day']
     data = [
@@ -182,18 +182,34 @@ def test_set_nn_feature():
 
     X_df = sales_df.copy()
     X_df['date_block_num'] += 1
+    X_df['orig_item_id_is_fm'] = False
 
     sales_df.drop('item_category_id', axis=1, inplace=True)
 
     set_nn_feature(X_df, feature_col, items_text_data, sales_df, items_df, n_neighbors)
+
+    new_col1 = '{}Neighbor_{}'.format(4, feature_col)
     assert X_df[X_df.date_block_num == 11].empty
-    assert X_df.iloc[0]['neighbor_item_cnt_day'] == 2 / 1
-    assert X_df.iloc[1]['neighbor_item_cnt_day'] == 1 / 1
-    assert X_df.iloc[2]['neighbor_item_cnt_day'] == 2 / 1
-    assert X_df.iloc[3]['neighbor_item_cnt_day'] == (5 + 1) / 2
-    assert X_df.iloc[4]['neighbor_item_cnt_day'] == (5 + 3) / 2
-    assert X_df.iloc[5]['neighbor_item_cnt_day'] == (1 + 3) / 2
-    assert X_df.iloc[6]['neighbor_item_cnt_day'] == 2 / 1
-    assert X_df.iloc[7]['neighbor_item_cnt_day'] == 1 / 1
-    assert X_df.iloc[8]['neighbor_item_cnt_day'] == -10
-    assert X_df.iloc[9]['neighbor_item_cnt_day'] == -10
+    assert X_df.iloc[0][new_col1] == 2 / 1
+    assert X_df.iloc[1][new_col1] == 1 / 1
+    assert X_df.iloc[2][new_col1] == 2 / 1
+    assert X_df.iloc[3][new_col1] == (5 + 1) / 2
+    assert X_df.iloc[4][new_col1] == (5 + 3) / 2
+    assert X_df.iloc[5][new_col1] == (1 + 3) / 2
+    assert X_df.iloc[6][new_col1] == 2 / 1
+    assert X_df.iloc[7][new_col1] == 1 / 1
+    assert X_df.iloc[8][new_col1] == -10
+    assert X_df.iloc[9][new_col1] == -10
+
+    new_col2 = '{}Neighbor_{}'.format(1, feature_col)
+    assert X_df[X_df.date_block_num == 11].empty
+    assert X_df.iloc[0][new_col2] == 2 / 1
+    assert X_df.iloc[1][new_col2] == 1 / 1
+    assert X_df.iloc[2][new_col2] == 2 / 1
+    assert X_df.iloc[3][new_col2] == 5 / 1 or X_df.iloc[3][new_col2] == 1 / 1
+    assert X_df.iloc[4][new_col2] == 3 / 1 or X_df.iloc[4][new_col2] == 5 / 1
+    assert X_df.iloc[5][new_col2] == 3 / 1 or X_df.iloc[5][new_col2] == 1 / 1
+    assert X_df.iloc[6][new_col2] == 2 / 1
+    assert X_df.iloc[7][new_col2] == 1 / 1
+    assert X_df.iloc[8][new_col2] == -10
+    assert X_df.iloc[9][new_col2] == -10
