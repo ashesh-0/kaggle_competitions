@@ -151,6 +151,7 @@ def get_neighbor_item_ids(
 
 
 def compute_weights(distance_arr):
+    assert len(distance_arr) > 1
     # In general, distances have 1 as the maximum value.
     distance_arr = [w / max(1, max(distance_arr)) for w in distance_arr]
     weights = [1 - w for w in distance_arr]
@@ -159,7 +160,13 @@ def compute_weights(distance_arr):
     if sm != 0:
         weights = [w / sm for w in weights]
     else:
-        print('Zero weights encountered in NN features')
+        # here all distances are same. If they are less then equally allocate them. for large distances, treat them as
+        # noise.
+        if distance_arr[0] > 0.9:
+            # random points getting treated as neighbors.
+            weights = [np.nan] * len(weights)
+        else:
+            weights = [1 / len(weights)] * len(weights)
 
     return np.array(weights)
 
@@ -186,8 +193,9 @@ def _get_one_row_feature(
             assert item_dbn_id in item_features, '{}-{} item_dbn_id not present '.format(n_item_id, date_block_num)
             feature[i] = item_features[item_dbn_id]
 
-    if use_weights:
-        output = [0] * n_neighbors
+    # for one length neighbors, weights does not make sense.
+    if use_weights and len(neighbor_item_ids) > 1:
+        output = [0] * len(n_neighbors)
         for i, neighbor_count in enumerate(n_neighbors):
             weights = compute_weights(neighbor_distances[:neighbor_count])
             output[i] = np.sum(feature[:neighbor_count] * weights)
@@ -207,6 +215,7 @@ def get_one_dbn_category_feature(
         neighbors,
         items_text_data,
         n_neighbors,
+        use_weights=False,
 ):
     output = np.ones((len(shop_ids), len(n_neighbors))) * DEFAULT_VALUE
     neighbor_item_ids = get_neighbor_item_ids(date_block_num, item_category_id, item_ids, neighbors, items_text_data)
@@ -214,8 +223,8 @@ def get_one_dbn_category_feature(
         shop_id, neighbors = shop_id_neighbors
         if len(neighbors) == 0:
             continue
-        output[i, :] = _get_one_row_feature(date_block_num, shop_id, shop_item_features, item_features, neighbors,
-                                            n_neighbors)
+        output[i, :] = _get_one_row_feature(
+            date_block_num, shop_id, shop_item_features, item_features, neighbors, n_neighbors, use_weights=use_weights)
     return output
 
 
@@ -226,6 +235,7 @@ def set_nn_feature(
         sales_df,
         items_df,
         n_neighbors: List[int],
+        use_weights=False,
 ):
     assert 'orig_item_id_is_fm' in X_df
     assert 'item_category_id' in X_df
@@ -246,7 +256,7 @@ def set_nn_feature(
     features = np.zeros((X_df.shape[0], len(n_neighbors)))
     index = np.zeros(X_df.shape[0])
     features_idx = 0
-    for dbn in tqdm(range(35)):
+    for dbn in tqdm_notebook(range(35)):
         dbn_X_df = X_df[X_df.date_block_num == dbn]
         for item_category_id in range(84):
             temp_X = dbn_X_df[dbn_X_df.item_category_id == item_category_id]
@@ -264,6 +274,7 @@ def set_nn_feature(
                 models.neighbors,
                 items_text_data,
                 n_neighbors,
+                use_weights=use_weights,
             )
             features[features_idx:features_idx + one_block_data.shape[0], :] = one_block_data
             index[features_idx:features_idx + one_block_data.shape[0]] = temp_X.index.tolist()
@@ -272,6 +283,8 @@ def set_nn_feature(
     for i, neighbor_sz in enumerate(n_neighbors):
         col = '{}Neighbor_{}'.format(neighbor_sz, feature_col)
         X_df[col] = pd.Series(features[:, i], index=index).astype(np.float32)
+        print('Invalid entries fraction for', col, X_df[col].isna().sum() / X_df.shape[0])
+        X_df[col].fillna(-10, inplace=True)
 
 
 if __name__ == '__main__':
