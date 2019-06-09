@@ -153,10 +153,32 @@ def test_compute_weights():
     w = compute_weights(distance)
     assert (w >= 0).all()
     assert (w <= 1).all()
-    assert abs(w.sum() == 1) <= 1e-6
+    assert abs(w.sum() - 1) <= 1e-6
     assert w[0] > w[1]
     assert w[1] > w[2]
     assert w[2] > w[3]
+
+
+def test_compute_weights2():
+    distance = [0, 0.5, 0.2, 2]
+    w = compute_weights(distance)
+    assert (w >= 0).all()
+    assert (w <= 1).all()
+    assert abs(w.sum() - 1) <= 1e-6
+    assert w[0] > w[1]
+    assert w[2] > w[1]
+    assert w[0] > w[2]
+    assert w[2] > w[3]
+
+
+def test_compute_weights3():
+    distance = [0, 0.1]
+    w = compute_weights(distance)
+    print(w)
+    assert (w >= 0).all()
+    assert (w <= 1).all()
+    assert abs(w.sum() - 1) <= 1e-6
+    assert w[0] > w[1]
 
 
 def test_set_nn_feature():
