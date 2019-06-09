@@ -10,6 +10,7 @@ from numeric_features import NumericFeatures, get_y, date_preprocessing
 from id_features import IdFeatures
 from lagged_features import add_lagged_features
 from city_data_features import add_city_data_features
+from duration_features import TradingDurationBasedFeatures
 
 
 class ModelData:
@@ -29,6 +30,7 @@ class ModelData:
         # orig_item_id is needed in id_features.
         self._sales_df['orig_item_id'] = self._sales_df['item_id']
         self._id_features = IdFeatures(self._sales_df, self._items_df)
+        self._duration_features = TradingDurationBasedFeatures(self._sales_df, self._items_df)
 
     def get_train_X_y(self):
         print('Fetching X')
@@ -66,6 +68,12 @@ class ModelData:
         # City related features like area, coordinate, city_id
         X_df = add_city_data_features(X_df, self._shops_df)
         print('City data features added')
+
+        # Duration features
+        assert not X_df.isna().any().any()
+        X_df = self._duration_features.transform(X_df)
+        print('Duration features added')
+        assert not X_df.isna().any().any()
 
         return X_df
 
