@@ -32,10 +32,9 @@ def get_numeric_rolling_feature_df(sales_df, process_count=4):
     sales_df['log_p'] = np.log(sales_df['item_price'])
     quantiles = [0.25, 0.5, 0.75, 0.9]
 
-    sales_1M_features_args = [(nmonths_features, (sales_df, 'item_cnt_day', 1, quantiles), {})]
+    sales_1M_features_args = [(nmonths_features, (sales_df, 'item_cnt_day', 1, []), {})]
     sales_2M_features_args = [(nmonths_features, (sales_df, 'item_cnt_day', 2, quantiles), {})]
     sales_4M_features_args = [(nmonths_features, (sales_df, 'item_cnt_day', 4, quantiles), {})]
-
     args = sales_1M_features_args
     args += sales_2M_features_args
     args += sales_4M_features_args
@@ -63,7 +62,7 @@ class NumericFeatures:
     def get(self, sales_df):
         # assert sales_df[sales_df.item_id.isin([83, 173])].empty
 
-        df = get_numeric_rolling_feature_df(sales_df)
+        df = get_numeric_rolling_feature_df(sales_df, process_count=2)
         print('Numeric rolling feature added.')
 
         # price features
@@ -77,3 +76,6 @@ class NumericFeatures:
         df.drop('date_block_num', axis=1, inplace=True)
 
         return df
+
+
+# 0.9260278	test: 1.7538592

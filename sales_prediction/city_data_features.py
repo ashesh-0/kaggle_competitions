@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 from city_data import CITY_DATA, add_city_name
-from sklearn.preprocessing import LabelEncoder
+
+# from sklearn.preprocessing import LabelEncoder
 
 
 def add_city_data_features(X_df, shops_df):
@@ -10,9 +11,11 @@ def add_city_data_features(X_df, shops_df):
     """
     shops_df = shops_df.copy()
     add_city_name(shops_df)
-    shops_df['city_id'] = LabelEncoder().fit_transform(shops_df['city']).astype(np.int16)
-    city_features = ['city_id']
-    for key in ['lat', 'lon', 'importance', 'area']:
+    city_features = []
+    # shops_df['city_id'] = LabelEncoder().fit_transform(shops_df['city']).astype(np.int16)
+    # city_features = ['city_id']
+    # for key in ['lat', 'lon', 'importance', 'area']:
+    for key in ['lon']:
         feature = 'city_' + key
         shops_df[feature] = shops_df['city'].apply(lambda x: CITY_DATA[x][key] if x in CITY_DATA else -1).astype(
             np.float32)

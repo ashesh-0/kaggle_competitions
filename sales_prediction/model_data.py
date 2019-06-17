@@ -1,3 +1,4 @@
+import gc
 from model_validator import ModelValidator
 from rolling_mean_encoding import rolling_mean_encoding
 import pandas as pd
@@ -77,7 +78,7 @@ class ModelData:
 
         return X_df
 
-    def get_test_X(self, sales_test_df, test_datetime: datetime):
+    def get_data(self, sales_test_df, test_datetime: datetime):
 
         item_id_original = sales_test_df['item_id'].copy()
         # adding items_category_id to dataframe.
@@ -109,10 +110,34 @@ class ModelData:
         print('Preprocessing X about to be done now.')
         X_df = self.get_X(df)
 
-        X_df = X_df.loc[sales_test_df.index]
+        test_X_df = X_df.loc[sales_test_df.index]
+        # train data
+        train_X_df = X_df.loc[recent_sales_df.index]
+        del X_df
+        gc.collect()
 
-        assert X_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
-        return X_df
+        train_X_df.index += subtract_index_offset
+        assert train_X_df.index.equals(self._sales_df.index)
+
+        train_y_df = get_y(self._sales_df).to_frame('item_cnt_month')
+        print('Y fetched')
+
+        # Retain common rows
+        train_X_df = train_X_df.join(train_y_df[[]], how='inner')
+        train_y_df = train_y_df.join(train_X_df[[]], how='inner')['item_cnt_month']
+        # Order
+        train_y_df = train_y_df.loc[train_X_df.index]
+
+        assert test_X_df.loc[item_id_original.index]['orig_item_id'].equals(item_id_original)
+        return {
+            'test': {
+                'X': test_X_df
+            },
+            'train': {
+                'X': train_X_df,
+                'y': train_y_df
+            },
+        }
 
 
 def mean_encoding_preprocessing(sales):
