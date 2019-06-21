@@ -1,14 +1,17 @@
-from intermediate_atoms import add_intermediate_atom_stats
+# from intermediate_atoms import add_intermediate_atom_stats
 from distance_features import add_distance_features
 from molecule_features import add_molecule_features
+from neighbor_features import add_neighbors_features
 import pandas as pd
 
 
-def get_X(X_df, structures_df):
+def get_X(X_df, structures_df, atom_encoder):
     X_df = add_molecule_features(X_df, structures_df)
     # It is necessary to first call molecule feature as distance features use some of the columns created in
     # molecule features.
     X_df = add_distance_features(X_df, structures_df)
+    # it must be called after distance features.
+    X_df = add_neighbors_features(X_df, structures_df, atom_encoder)
     # X_df = add_intermediate_atom_stats(X_df, structures_df)
     bond_encoding(X_df)
     return X_df
@@ -71,9 +74,9 @@ def bond_encoding(df):
     df['enc_bond'] = bond.map(bond_map)
 
 
-if __name__ == '__main__':
-    DIR = '/home/ashesh/Documents/initiatives/kaggle_competitions/predicting_molecular_properties/data/'
-    X_df = pd.read_csv(DIR + 'train.csv', index_col=0)
-    structures_df = pd.read_csv(DIR + 'structures.csv')
-    X_df = add_distance_features(X_df, structures_df)
-    X_df = add_intermediate_atom_stats(X_df, structures_df)
+# if __name__ == '__main__':
+#     DIR = '/home/ashesh/Documents/initiatives/kaggle_competitions/predicting_molecular_properties/data/'
+#     X_df = pd.read_csv(DIR + 'train.csv', index_col=0)
+#     structures_df = pd.read_csv(DIR + 'structures.csv')
+#     X_df = add_distance_features(X_df, structures_df)
+#     X_df = add_intermediate_atom_stats(X_df, structures_df)

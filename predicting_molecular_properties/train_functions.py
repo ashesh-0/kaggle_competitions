@@ -49,6 +49,7 @@ def train_for_each_type(catboost_config_for_each_type, train_X_df, Y_df, no_vali
     for type_enc in train_X_df['type_enc'].unique():
         print(type_enc)
         X_t = train_X_df[train_X_df.type_enc == type_enc]
+
         if no_validation:
             train_X = X_t
             test_X = None
