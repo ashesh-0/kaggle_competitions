@@ -5,6 +5,7 @@ from sklearn.preprocessing import LabelEncoder
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
+from common_utils import find_distance_from_plane, find_distance_btw_point
 
 EPSILON = 1e-5
 
@@ -15,16 +16,8 @@ def _add_plane_vector(df):
     df['m_z'] = (df['z_1'] - df['z_0']).values
     df['m_2norm'] = np.sqrt(df['m_x'] * df['m_x'] + df['m_y'] * df['m_y'] + df['m_z'] * df['m_z'])
     df['c'] = 0
-    df['c'] = -1 * df['m_2norm'] * _find_distance_from_plane(df, 'x_0', 'y_0', 'z_0').values
-    df['x_1_distance'] = _find_distance_from_plane(df, 'x_1', 'y_1', 'z_1').values
-
-
-def _find_distance_from_plane(df, x: str, y: str, z: str):
-    return (df[x] * df['m_x'] + df[y] * df['m_y'] + df[z] * df['m_z'] + df['c']) / df['m_2norm']
-
-
-def _find_distance_btw_point(df, x0, y0, z0, x1, y1, z1):
-    return np.sqrt((df[x0] - df[x1]).pow(2) + (df[y0] - df[y1]).pow(2) + (df[z0] - df[z1]).pow(2))
+    df['c'] = -1 * df['m_2norm'] * find_distance_from_plane(df, 'x_0', 'y_0', 'z_0').values
+    df['x_1_distance'] = find_distance_from_plane(df, 'x_1', 'y_1', 'z_1').values
 
 
 def _add_dist_frm_a_point_one_threshold(df, atom_enc, thresh, empty_index_df):
@@ -51,7 +44,7 @@ def _add_dist_frm_a_point_one_threshold(df, atom_enc, thresh, empty_index_df):
 
 
 def _add_stats_frm_atom_0(df, atom_enc, empty_index_df):
-    df['atom_dis'] = _find_distance_btw_point(df, 'x_0', 'y_0', 'z_0', 'x', 'y', 'z')
+    df['atom_dis'] = find_distance_btw_point(df, 'x_0', 'y_0', 'z_0', 'x', 'y', 'z')
     outputs = []
     for thresh in [2, 3]:
         outputs.append(_add_dist_frm_a_point_one_threshold(df, atom_enc, thresh, empty_index_df))
@@ -61,7 +54,7 @@ def _add_stats_frm_atom_0(df, atom_enc, empty_index_df):
 
 
 def _add_stats_frm_atom_1(df, atom_enc, empty_index_df):
-    df['atom_dis'] = _find_distance_btw_point(df, 'x_1', 'y_1', 'z_1', 'x', 'y', 'z')
+    df['atom_dis'] = find_distance_btw_point(df, 'x_1', 'y_1', 'z_1', 'x', 'y', 'z')
     outputs = []
     for thresh in [2, 3]:
         outputs.append(_add_dist_frm_a_point_one_threshold(df, atom_enc, thresh, empty_index_df))
@@ -76,7 +69,7 @@ def _add_stats_frm_bond_center(df, atom_enc, empty_index_df):
     df['bond_mid_y'] = (df['y_0'] + df['y_1']) / 2
     df['bond_mid_z'] = (df['z_0'] + df['z_1']) / 2
 
-    df['atom_dis'] = _find_distance_btw_point(df, 'bond_mid_x', 'bond_mid_y', 'bond_mid_z', 'x', 'y', 'z')
+    df['atom_dis'] = find_distance_btw_point(df, 'bond_mid_x', 'bond_mid_y', 'bond_mid_z', 'x', 'y', 'z')
     outputs = []
     for thresh in [2, 3]:
         outputs.append(_add_dist_frm_a_point_one_threshold(df, atom_enc, thresh, empty_index_df))
@@ -90,7 +83,7 @@ def _add_intermediate_counts_molecule_range(df, atom_enc, empty_index_df):
     """
     Count of number of molecules coming in between the two edges.
     """
-    df['atom_dis'] = _find_distance_from_plane(df, 'x', 'y', 'z')
+    df['atom_dis'] = find_distance_from_plane(df, 'x', 'y', 'z')
     df.loc[df['atom_dis'].abs() < EPSILON, 'atom_dis'] = 0
     same_side_of_plane = df['atom_dis'] * df['x_1_distance'] >= 0
     close_enough = (df['atom_dis'].abs() <= df['x_1_distance'].abs())

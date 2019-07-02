@@ -5,7 +5,7 @@ Note that in a generic case, there can be low_neighbors (with a lower index) or 
 """
 import numpy as np
 import pandas as pd
-# from intermediate_atoms import _find_distance_btw_point
+# from common_utils import find_distance_btw_point, find_cos
 from tqdm import tqdm_notebook
 from sklearn.preprocessing import LabelEncoder
 
@@ -28,6 +28,9 @@ def add_neighbors_features(df, structures_df, atom_encoder, neighbor_cnt=3):
 
     sfx_fmt = '_{}neighbor_atom_index_{}'
     for a_i in [0, 1]:
+        angle_cols = []
+        dist_cols = []
+        atom_cols = []
         for idx in tqdm_notebook(range(-neighbor_cnt, neighbor_cnt + 1, 1)):
             if idx == 0:
                 continue
@@ -44,16 +47,34 @@ def add_neighbors_features(df, structures_df, atom_encoder, neighbor_cnt=3):
                 suffixes=('', sfx),
                 how='left')
 
+            angle_col = 'angle' + sfx
+            angle_cols.append(angle_col)
+
+            df[angle_col] = find_cos(df, 'x', 'y', 'z', f'x_{a_i}', f'y_{a_i}', f'z_{a_i}', f'x_{1-a_i}', f'y_{1-a_i}',
+                                     f'z_{1-a_i}')
+            df[angle_col] = df[angle_col].astype(np.float32)
+
             dis_col = 'dis' + sfx
-            df[dis_col] = _find_distance_btw_point(df, f'x_{a_i}', f'y_{a_i}', f'z_{a_i}', 'x', 'y', 'z')
-            df['atom' + sfx] = df['atom' + sfx].fillna('NAN')
-            # no neighbor means very large distance.
-            df[dis_col] = df[dis_col].fillna(100).astype(np.float32)
+            dist_cols.append(dis_col)
+
+            df[dis_col] = find_distance_btw_point(df, f'x_{a_i}', f'y_{a_i}', f'z_{a_i}', 'x', 'y', 'z')
+            df[dis_col] = df[dis_col].astype(np.float32)
+
+            atom_col = 'atom' + sfx
+            atom_cols.append(atom_col)
+            df[atom_col] = df[atom_col].fillna('NAN')
             df.drop(['x', 'y', 'z', 'atom_index'], axis=1, inplace=True)
 
-        # stats
-        atom_cols = ['atom' + sfx_fmt.format(i, a_i) for i in range(-neighbor_cnt, neighbor_cnt + 1)]
-        atom_cols.remove('atom' + sfx_fmt.format(0, a_i))
+        # angle stats
+        df['avg_angle' + sfx_fmt.format('all', a_i)] = np.nanmean(df[angle_cols], axis=1)
+        # fillna after stats computation done.
+        df[angle_cols] = df[angle_cols].fillna(100)
+
+        # dist nan
+        df['avg_dis' + sfx_fmt.format('all', a_i)] = np.nanmean(df[dist_cols], axis=1)
+        df[dist_cols] = df[dist_cols].fillna(100)
+
+        # cnt stats
         df[f'H_cnt_neighbors_atom_index_{a_i}'] = (df[atom_cols] == 'H').sum(axis=1)
         df[f'C_cnt_neighbors_atom_index_{a_i}'] = (df[atom_cols] == 'C').sum(axis=1)
         for c in atom_cols:
