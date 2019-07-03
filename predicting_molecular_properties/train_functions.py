@@ -43,6 +43,55 @@ def train(catboost_config, train_X, train_Y, test_X, test_Y, data_size, plot=Fal
     return model
 
 
+def train_for_each_output(catboost_config_for_each_output, train_X_df, Y_df, no_validation=False):
+    models = {}
+    predictions = []
+    if no_validation:
+        train_X = train_X_df
+        train_Y = Y_df
+        test_X = None
+        test_Y = None
+    else:
+        train_X, test_X = train_test_split(train_X_df, test_size=0.15, random_state=0)
+        test_Y = Y_df.loc[test_X.index]
+        train_Y = Y_df.loc[train_X.index]
+
+    for output_type in Y_df.columns:
+        print(output_type)
+        models[output_type] = train(
+            catboost_config_for_each_output[output_type],
+            train_X,
+            train_Y[output_type],
+            test_X,
+            test_Y[output_type],
+            train_X_df.shape[0],
+        )
+        print('Best iter', models[output_type].best_iteration_, catboost_config_for_each_output[output_type])
+
+        if no_validation is False:
+            predictions.append(pd.Series(models[output_type].predict(test_X), index=test_X.index))
+            print('Eval',
+                  eval_metric(test_Y[output_type].values, predictions[-1].values, X.loc[test_Y.index, 'type_enc']))
+
+    if no_validation is False:
+        prediction_df = pd.concat(predictions, axis=1).sum(axis=1)
+        actual = Y_df.loc[prediction_df.index].sum(axis=1)
+        print('Final metric', eval_metric(actual.values, prediction_df.values, X.loc[actual.index, 'type_enc']))
+        print('')
+        single_model = train(
+            catboost_config_for_each_output['single'],
+            train_X,
+            train_Y.sum(axis=1),
+            test_X,
+            test_Y.sum(axis=1),
+            train_X_df.shape[0],
+        )
+        print('Eval on single model',
+              eval_metric(test_Y.sum(axis=1).values, single_model.predict(test_X), X.loc[test_Y.index, 'type_enc']))
+
+    return models
+
+
 def train_for_each_type(catboost_config_for_each_type, train_X_df, Y_df, no_validation=False):
     models = {}
     predictions = []
