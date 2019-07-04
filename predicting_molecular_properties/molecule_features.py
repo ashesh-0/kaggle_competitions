@@ -8,6 +8,22 @@ from decorators import timer
 
 
 @timer('MoleculeFeatures')
+def unsaturation_count_features(structures_df):
+    n_counts = structures_df.groupby(['molecule_name', 'atom']).size().unstack().fillna(0)
+    nC = n_counts['C']
+    nO = n_counts['O']
+    nN = n_counts['N']
+    nH = n_counts['H']
+    nF = n_counts['F'] if 'F' in n_counts.columns else 0
+    unsatu_cnt = ((2 * nC + 2 - 0 * nO + 1 * nN - 1 * nF) - nH) / 2
+    unsatu_cnt = unsatu_cnt.to_frame('unsaturation_count').astype(np.float16)
+    unsatu_cnt['unsaturation_fraction'] = unsatu_cnt['unsaturation_count'] / n_counts.sum(axis=1)
+    # Not valid for non carbon atoms
+    unsatu_cnt.loc[nC == 0, :] = -10
+    return unsatu_cnt
+
+
+@timer('MoleculeFeatures')
 def count_features(structures_df):
     """
     How many Carbon, Oxygen and other atoms are present in the molecule.
@@ -56,8 +72,9 @@ def get_molecule_features(structures_df):
     count_f = count_features(structures_df)
     conhull_f = convexhull_features(structures_df)
     mol_shape_f = molecule_shape_features(structures_df)
+    unsatur_f = unsaturation_count_features(structures_df)
 
-    molecule_f = pd.concat([count_f, conhull_f, mol_shape_f], axis=1)
+    molecule_f = pd.concat([count_f, conhull_f, mol_shape_f, unsatur_f], axis=1)
     molecule_f['volume_normalized'] = (molecule_f['volume'] / molecule_f['total_count']).astype(np.float32)
     molecule_f['area_normalized'] = (molecule_f['area'] / molecule_f['total_count']).astype(np.float32)
     return molecule_f
