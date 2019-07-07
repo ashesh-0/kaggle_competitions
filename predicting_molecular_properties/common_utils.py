@@ -16,8 +16,24 @@ def get_structure_data(X, str_df):
         X, str_df, left_on=['molecule_name', 'atom_index_1'], right_on=['molecule_name', 'atom_index'], how='left')
     X.drop(['atom_index'], inplace=True, axis=1)
     X.rename({'x': 'x_1', 'y': 'y_1', 'z': 'z_1', 'atom': 'atom_1'}, axis=1, inplace=True)
-    X.set_index('id',inplace=True)
+    X.set_index('id', inplace=True)
     return X
+
+
+def dot(df_left, df_right, cols_left, cols_right):
+    dot_df = None
+    assert len(cols_left) == len(cols_right)
+    assert len(set(cols_left) - set(df_left.columns.tolist())) == 0
+    assert len(set(cols_right) - set(df_right.columns.tolist())) == 0
+
+    for i in range(len(cols_left)):
+        temp_sum = df_left[cols_left[i]] * df_right[cols_right[i]]
+        if dot_df is None:
+            dot_df = temp_sum
+        else:
+            dot_df += temp_sum
+
+    return dot_df
 
 
 def find_distance_from_plane(df, x: str, y: str, z: str):

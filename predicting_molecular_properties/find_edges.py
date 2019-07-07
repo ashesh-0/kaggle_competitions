@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from bond_features import get_bond_data
-from tqdm import tqdm_notebook
+from tqdm import tqdm
 
 # def get_index_for_false_H_bond(atom_data, atom_col, atom_idx_col, dis, molecule_edges, H_restrict_dict):
 #     if atom_data[atom_col] == 'H':
@@ -38,7 +38,7 @@ def find_edges(structures_df, bond_len_factor=1.1):
     start_end = temp_df.groupby('molecule_name').agg({'id': ['first', 'last']})['id'].reset_index()
     start_end = start_end[['molecule_name', 'first', 'last']].values
     output = []
-    for row in tqdm_notebook(start_end):
+    for row in tqdm(start_end):
         molecule_edges = []
         # false_edge_indices = []
         # H_restrict_dict = {}
@@ -52,7 +52,9 @@ def find_edges(structures_df, bond_len_factor=1.1):
                 ra = structures_values[r_idx]
                 l_cor = la[[x_col, y_col, z_col]]
                 r_cor = ra[[x_col, y_col, z_col]]
-                dis = np.sqrt(np.power((l_cor - r_cor), 2).sum())
+                bnd_vector = r_cor - l_cor
+                dis = np.sqrt(np.power(bnd_vector, 2).sum())
+                bnd_vector = bnd_vector / dis
                 if dis <= bonds_df.at[(la[at_col], ra[at_col]), 'standard_bond_length'] * bond_len_factor:
                     # l_del_idx = get_index_for_false_H_bond(la, at_col, ati_col, dis, molecule_edges, H_restrict_dict)
                     # r_del_idx = get_index_for_false_H_bond(ra, at_col, ati_col, dis, molecule_edges, H_restrict_dict)
@@ -65,10 +67,13 @@ def find_edges(structures_df, bond_len_factor=1.1):
                     # if r_del_idx != -1:
                     #     false_edge_indices.append(r_del_idx)
 
-                    molecule_edges.append([mn, la[ati_col], ra[ati_col], dis])
+                    molecule_edges.append([mn, la[ati_col], ra[ati_col], dis] + bnd_vector.tolist())
 
         # output += np.delete(np.array(molecule_edges), false_edge_indices, axis=0).tolist()
         output += molecule_edges
 
-    edge_df = pd.DataFrame(output, columns=['molecule_name', 'atom_index_0', 'atom_index_1', 'distance'])
+    edge_df = pd.DataFrame(output, columns=['molecule_name', 'atom_index_0', 'atom_index_1', 'distance', 'x', 'y', 'z'])
+    edge_df[['atom_index_0', 'atom_index_1']] = edge_df[['atom_index_0', 'atom_index_1']].astype(np.uint8)
+    edge_df[['distance', 'x', 'y', 'z']] = edge_df[['distance', 'x', 'y', 'z']].astype(np.float32)
+
     return edge_df

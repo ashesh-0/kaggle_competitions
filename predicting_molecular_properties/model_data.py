@@ -3,14 +3,16 @@ from distance_features import add_distance_features
 from molecule_features import add_molecule_features
 from neighbor_features_atom_index import add_neighbors_features
 from bond_features import add_bond_features
+from edge_features import add_edge_features
 import pandas as pd
 
 
-def get_X(X_df, structures_df, atom_encoder):
+def get_X(X_df, structures_df, atom_encoder, edge_df):
     X_df = add_molecule_features(X_df, structures_df)
     # It is necessary to first call molecule feature as distance features use some of the columns created in
     # molecule features.
     X_df = add_distance_features(X_df, structures_df)
+    X_df = add_edge_features(edge_df, X_df, structures_df)
     # it must be called after distance features
     X_df = add_bond_features(X_df)
     # it must be called after distance features.
