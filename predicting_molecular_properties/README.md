@@ -44,3 +44,7 @@ Using Quantum mechanics, one gets the target value using just above information.
 after we split train from validation.
 2. possible spin types of all atoms will be helpful.
 
+1. In 3 bond neighbors, trans alkenes have larger coupling constants than sys.
+2. Currently, I'm just looking at 1 neighbors. I should be looking at 3 neighbor Hydrogen.
+
+
