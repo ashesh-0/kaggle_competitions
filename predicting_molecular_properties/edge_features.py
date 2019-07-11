@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-from bond_features import get_electonegativity
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm_notebook
+
+from bond_features import get_electonegativity
 from decorators import timer
 from common_utils import dot
 
