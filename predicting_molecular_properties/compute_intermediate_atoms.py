@@ -3,36 +3,75 @@ import pandas as pd
 import numpy as np
 
 
-def dfs(node, stack, target, edges, molecule_name, max_depth):
+def _get_path_to_src(end_node, parents_dict):
+    output = []
+    src = end_node
+    while src != -1:
+        output.append(src)
+        src = parents_dict[src]
+
+    return list(reversed(output))
+
+
+def bfs(nodes, parents_dict, target, edges, molecule_name, depth, max_depth):
     """
     stack is filled with the sequence of nodes from atom_index_0 to atom_index_1
     """
-    # print(node, stack)
     # cycle
-    if node in stack:
-        return False
+    if depth >= max_depth:
+        return []
 
-    if len(stack) >= max_depth:
-        return False
+    next_layer = []
+    for parent_node in nodes:
 
-    stack.append(node)
+        if parent_node == target:
+            return _get_path_to_src(target, parents_dict)
 
-    if node == target:
-        return True
+        key = (molecule_name, parent_node)
+        if key not in edges:
+            # print('Absent key', key)
+            continue
 
-    key = (molecule_name, node)
-    if key not in edges:
-        # print('Absent key', key)
-        stack.pop()
-        return False
+        for child in edges[key]:
+            if child in parents_dict or child in next_layer:
+                continue
 
-    for child in edges[key]:
-        output = dfs(child, stack, target, edges, molecule_name, max_depth)
-        if output is True:
-            return output
+            next_layer.append(child)
+            parents_dict[child] = parent_node
 
-    stack.pop()
-    return False
+    return bfs(next_layer, parents_dict, target, edges, molecule_name, depth + 1, max_depth)
+
+
+# def dfs(node, stack, target, edges, molecule_name, max_depth):
+#     """
+#     stack is filled with the sequence of nodes from atom_index_0 to atom_index_1
+#     """
+#     # print(node, stack)
+#     # cycle
+#     if node in stack:
+#         return False
+
+#     if len(stack) >= max_depth:
+#         return False
+
+#     stack.append(node)
+
+#     if node == target:
+#         return True
+
+#     key = (molecule_name, node)
+#     if key not in edges:
+#         # print('Absent key', key)
+#         stack.pop()
+#         return False
+
+#     for child in edges[key]:
+#         output = dfs(child, stack, target, edges, molecule_name, max_depth)
+#         if output is True:
+#             return output
+
+#     stack.pop()
+#     return False
 
 
 def get_intermediate_atoms_link(edges_df, X_df, max_path_len=10):
@@ -49,7 +88,7 @@ def get_intermediate_atoms_link(edges_df, X_df, max_path_len=10):
         mn = row[0]
         s = row[1]
         e = row[2]
-        stack = []
-        dfs(s, stack, e, edges, mn, max_path_len)
-        output[idx] = stack + [-1] * (max_path_len - len(stack))
+        parents_dict = {s: -1}
+        path = bfs([s], parents_dict, e, edges, mn, 0, max_path_len)
+        output[idx] = path + [-1] * (max_path_len - len(path))
     return pd.DataFrame(output, index=X_df.index, dtype=np.int16)
