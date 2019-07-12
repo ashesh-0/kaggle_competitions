@@ -6,6 +6,7 @@ from tqdm import tqdm_notebook
 from bond_features import get_electonegativity
 from decorators import timer
 from common_utils import dot
+from intermediate_atom_features import add_intermediate_atom_features
 
 
 def get_symmetric_edges(edge_df):
@@ -67,7 +68,7 @@ def add_features_to_edges(edge_df, structures_df):
     return add_electronetivity(edge_df)
 
 
-def add_edge_features(edge_df, X_df, structures_df):
+def add_edge_features(edge_df, X_df, structures_df, ia_df):
     """
     1. electonegativity feature for the bond.
     2. number of neighbors for both atoms of the bond.
@@ -77,7 +78,7 @@ def add_edge_features(edge_df, X_df, structures_df):
 
     edge_df = get_symmetric_edges(edge_df)
     X_df = add_neighbor_count_features(edge_df, X_df, structures_df)
-    add_bond_atom_aggregation_features(edge_df, X_df, structures_df)
+    add_bond_atom_aggregation_features(edge_df, X_df, structures_df, ia_df)
     return X_df
 
 
@@ -140,6 +141,7 @@ def add_bond_atom_aggregation_features(
         edge_df,
         X_df,
         structures_df,
+        ia_df,
         step=100,
 ):
     """
@@ -154,8 +156,10 @@ def add_bond_atom_aggregation_features(
     for start_m_id in tqdm_notebook(range(0, X_df['m_id'].max(), step)):
         st_t_df = structures_df[(structures_df['m_id'] >= start_m_id) & (structures_df['m_id'] < start_m_id + step)]
         X_t_df = X_df[(X_df['m_id'] >= start_m_id) & (X_df['m_id'] < start_m_id + step)]
+        ia_t_df = ia_df.loc[X_t_df.index]
         edge_t_df = edge_df[(edge_df['m_id'] >= start_m_id) & (edge_df['m_id'] < start_m_id + step)]
-        feat_df = _add_bond_atom_aggregation_features(edge_t_df, X_t_df, st_t_df)
+
+        feat_df = _add_bond_atom_aggregation_features(edge_t_df, X_t_df, st_t_df, ia_t_df)
         output.append(feat_df)
 
     feat_df = pd.concat(output, axis=0)
@@ -167,10 +171,13 @@ def add_bond_atom_aggregation_features(
     structures_df.drop('m_id', axis=1, inplace=True)
 
 
-def _add_bond_atom_aggregation_features(edge_df, X_df, structures_df):
+def _add_bond_atom_aggregation_features(edge_df, X_df, structures_df, ia_df):
     edge_df = add_features_to_edges(edge_df, structures_df)
     edge_df[['enegv_x', 'enegv_y', 'enegv_z']] = edge_df[['x', 'y', 'z']].multiply(
         edge_df['Electronegativity_diff'], axis=0)
+
+    feat_ia_df = add_intermediate_atom_features(edge_df, X_df, structures_df, ia_df)
+
     edge_df.rename(
         {
             'atom_index_0': 'atom_index_zero',
@@ -189,7 +196,8 @@ def _add_bond_atom_aggregation_features(edge_df, X_df, structures_df):
 
     feat_0 = _get_bond_atom_aggregation_features_one_atom(df, edge_df, 'atom_index_0')
     feat_1 = _get_bond_atom_aggregation_features_one_atom(df, edge_df, 'atom_index_1')
-    feat = pd.concat([feat_0, feat_1], axis=1)
+
+    feat = pd.concat([feat_0, feat_1, feat_ia_df], axis=1)
 
     nan_with_0 = [
         'atom_index_0_induced_elecneg_along',
