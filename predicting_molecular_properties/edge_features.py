@@ -3,10 +3,10 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm_notebook
 
-from bond_features import get_electonegativity
-from decorators import timer
-from common_utils import dot
-from intermediate_atom_features import add_intermediate_atom_features
+# from bond_features import get_electonegativity
+# from decorators import timer
+# from common_utils import dot, get_structure_data
+# from intermediate_atom_features import add_intermediate_atom_features
 
 
 def get_symmetric_edges(edge_df):
@@ -136,6 +136,39 @@ def add_electronetivity_features(X_df):
     return add_electronetivity(X_df)
 
 
+def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, ia_df):
+    """
+    Gets electronegativity features for X,Y where X,Y are neighbors atom1--X-...-Y-atom2
+    """
+    cnt_df = (~ia_df[ia_df != -1].isna()).sum(axis=1)
+    filtr = cnt_df >= 3
+    cnt_df = cnt_df[filtr]
+    ia_df = ia_df[filtr]
+    output = []
+    for i in [0, 1]:
+        temp_output = []
+        for cnt in cnt_df.unique():
+            temp_ia_df = ia_df[cnt_df == cnt].copy()
+            # We compute features on atom1--X and Y--atom2 bonds in two turns of the for loop.
+            temp_ia_df['atom_index_0'] = temp_ia_df[0] if i == 0 else temp_ia_df[cnt - 1]
+            temp_ia_df['atom_index_1'] = temp_ia_df[1] if i == 0 else temp_ia_df[cnt - 2]
+            temp_ia_df['molecule_name'] = X_df.loc[temp_ia_df.index, 'molecule_name']
+
+            temp_X_df = temp_ia_df[['atom_index_0', 'atom_index_1', 'molecule_name']]
+            temp_X_df = get_structure_data(temp_X_df, structures_df)
+            feat_df = _add_bond_atom_aggregation_features(edge_df, temp_X_df, structures_df, ia_df)
+            temp_output.append(feat_df)
+
+        output_df = pd.concat(temp_output, axis=0)
+        output_df = output_df.join(X_df[[]], how='right')
+        feat_df = _fill_nan_aggregation_features(output_df)
+        feat_df['EF_induced_elecneg_along_diff'] = feat_df['EF_induced_elecneg_along_diff'].fillna(0)
+        feat_df.columns = [f'1nbr_ai{i}_{c}' for c in feat_df.columns]
+        output.append(feat_df)
+
+    return pd.concat(output, axis=1)
+
+
 @timer('EdgeFeatures')
 def add_bond_atom_aggregation_features(
         edge_df,
@@ -152,6 +185,7 @@ def add_bond_atom_aggregation_features(
     structures_df['m_id'] = label.fit_transform(structures_df['molecule_name'])
     X_df['m_id'] = label.transform(X_df['molecule_name'])
     edge_df['m_id'] = label.transform(edge_df['molecule_name'])
+    edge_df = add_features_to_edges(edge_df, structures_df)
     output = []
     for start_m_id in tqdm_notebook(range(0, X_df['m_id'].max(), step)):
         st_t_df = structures_df[(structures_df['m_id'] >= start_m_id) & (structures_df['m_id'] < start_m_id + step)]
@@ -159,8 +193,10 @@ def add_bond_atom_aggregation_features(
         ia_t_df = ia_df.loc[X_t_df.index]
         edge_t_df = edge_df[(edge_df['m_id'] >= start_m_id) & (edge_df['m_id'] < start_m_id + step)]
 
+        feat_ia_df = add_intermediate_atom_features(edge_t_df, X_t_df, st_t_df, ia_t_df)
         feat_df = _add_bond_atom_aggregation_features(edge_t_df, X_t_df, st_t_df, ia_t_df)
-        output.append(feat_df)
+        feat_ia2_df = add_kneighbor_aggregation_features(edge_t_df, X_t_df, st_t_df, ia_t_df)
+        output.append(pd.concat([feat_df, feat_ia_df, feat_ia2_df], axis=1))
 
     feat_df = pd.concat(output, axis=0)
     for col in feat_df.columns:
@@ -171,12 +207,34 @@ def add_bond_atom_aggregation_features(
     structures_df.drop('m_id', axis=1, inplace=True)
 
 
+def _fill_nan_aggregation_features(feat_df):
+    nan_with_0 = [
+        'EF_atom_index_0_induced_elecneg_along',
+        'EF_atom_index_0_induced_elecneg_perp',
+        'EF_atom_index_1_induced_elecneg_along',
+        'EF_atom_index_1_induced_elecneg_perp',
+        'EF_atom_index_1_nbr_distance_std',
+        'EF_atom_index_1_nbr_bond_angle_std',
+    ]
+    feat_df[nan_with_0] = feat_df[nan_with_0].fillna(0)
+
+    nan_with_minus_10 = [
+        'EF_atom_index_0_nbr_distance_mean',
+        'EF_atom_index_0_nbr_bond_angle_mean',
+        'EF_atom_index_1_nbr_distance_min',
+        'EF_atom_index_1_nbr_distance_max',
+        'EF_atom_index_1_nbr_distance_mean',
+        'EF_atom_index_1_nbr_bond_angle_min',
+        'EF_atom_index_1_nbr_bond_angle_max',
+        'EF_atom_index_1_nbr_bond_angle_mean',
+    ]
+    feat_df[nan_with_minus_10] = feat_df[nan_with_minus_10].fillna(-10)
+    return feat_df
+
+
 def _add_bond_atom_aggregation_features(edge_df, X_df, structures_df, ia_df):
-    edge_df = add_features_to_edges(edge_df, structures_df)
     edge_df[['enegv_x', 'enegv_y', 'enegv_z']] = edge_df[['x', 'y', 'z']].multiply(
         edge_df['Electronegativity_diff'], axis=0)
-
-    feat_ia_df = add_intermediate_atom_features(edge_df, X_df, structures_df, ia_df)
 
     edge_df.rename(
         {
@@ -197,40 +255,14 @@ def _add_bond_atom_aggregation_features(edge_df, X_df, structures_df, ia_df):
     feat_0 = _get_bond_atom_aggregation_features_one_atom(df, edge_df, 'atom_index_0')
     feat_1 = _get_bond_atom_aggregation_features_one_atom(df, edge_df, 'atom_index_1')
 
-    feat = pd.concat([feat_0, feat_1, feat_ia_df], axis=1)
-
-    nan_with_0 = [
-        'atom_index_0_induced_elecneg_along',
-        'atom_index_0_induced_elecneg_perp',
-        'atom_index_0_nbr_distance_std',
-        'atom_index_0_nbr_bond_angle_std',
-        'atom_index_1_induced_elecneg_along',
-        'atom_index_1_induced_elecneg_perp',
-        'atom_index_1_nbr_distance_std',
-        'atom_index_1_nbr_bond_angle_std',
-    ]
-    feat[nan_with_0] = feat[nan_with_0].fillna(0)
-
-    nan_with_minus_10 = [
-        'atom_index_0_nbr_distance_min',
-        'atom_index_0_nbr_distance_max',
-        'atom_index_0_nbr_distance_mean',
-        'atom_index_0_nbr_bond_angle_min',
-        'atom_index_0_nbr_bond_angle_max',
-        'atom_index_0_nbr_bond_angle_mean',
-        'atom_index_1_nbr_distance_min',
-        'atom_index_1_nbr_distance_max',
-        'atom_index_1_nbr_distance_mean',
-        'atom_index_1_nbr_bond_angle_min',
-        'atom_index_1_nbr_bond_angle_max',
-        'atom_index_1_nbr_bond_angle_mean',
-    ]
-    feat[nan_with_minus_10] = feat[nan_with_minus_10].fillna(-10)
-
-    feat['induced_elecneg_along_diff'] = (
-        feat['atom_index_1_induced_elecneg_along'] - feat['atom_index_0_induced_elecneg_along'])
+    feat = pd.concat([feat_0, feat_1], axis=1)
 
     feat.columns = ['EF_' + c for c in feat.columns]
+    feat = _fill_nan_aggregation_features(feat)
+
+    feat['EF_induced_elecneg_along_diff'] = (
+        feat['EF_atom_index_1_induced_elecneg_along'] - feat['EF_atom_index_0_induced_elecneg_along'])
+
     feat = feat.astype(np.float16)
 
     # atom_index_0 is always H. So some features are not useful for it as it has just one neighbor.
