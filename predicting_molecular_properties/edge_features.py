@@ -136,12 +136,13 @@ def add_electronetivity_features(X_df):
     return add_electronetivity(X_df)
 
 
-def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, ia_df):
+def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, ia_df, k=1):
     """
     Gets electronegativity features for X,Y where X,Y are neighbors atom1--X-...-Y-atom2
+    This is for k =1. for k=2,next to next neighbor is considered.
     """
     cnt_df = (~ia_df[ia_df != -1].isna()).sum(axis=1)
-    filtr = cnt_df >= 3
+    filtr = cnt_df >= 3 + k - 1
     cnt_df = cnt_df[filtr]
     ia_df = ia_df[filtr]
     output = []
@@ -151,7 +152,7 @@ def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, ia_df):
             temp_ia_df = ia_df[cnt_df == cnt].copy()
             # We compute features on atom1--X and Y--atom2 bonds in two turns of the for loop.
             temp_ia_df['atom_index_0'] = temp_ia_df[0] if i == 0 else temp_ia_df[cnt - 1]
-            temp_ia_df['atom_index_1'] = temp_ia_df[1] if i == 0 else temp_ia_df[cnt - 2]
+            temp_ia_df['atom_index_1'] = temp_ia_df[k] if i == 0 else temp_ia_df[cnt - 1 - k]
             temp_ia_df['molecule_name'] = X_df.loc[temp_ia_df.index, 'molecule_name']
 
             temp_X_df = temp_ia_df[['atom_index_0', 'atom_index_1', 'molecule_name']]
@@ -163,7 +164,7 @@ def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, ia_df):
         output_df = output_df.join(X_df[[]], how='right')
         feat_df = _fill_nan_aggregation_features(output_df)
         feat_df['EF_induced_elecneg_along_diff'] = feat_df['EF_induced_elecneg_along_diff'].fillna(0)
-        feat_df.columns = [f'1nbr_ai{i}_{c}' for c in feat_df.columns]
+        feat_df.columns = [f'{k}nbr_ai{i}_{c}' for c in feat_df.columns]
         output.append(feat_df)
 
     return pd.concat(output, axis=1)
@@ -195,8 +196,9 @@ def add_bond_atom_aggregation_features(
 
         feat_ia_df = add_intermediate_atom_features(edge_t_df, X_t_df, st_t_df, ia_t_df)
         feat_df = _add_bond_atom_aggregation_features(edge_t_df, X_t_df, st_t_df, ia_t_df)
-        feat_ia2_df = add_kneighbor_aggregation_features(edge_t_df, X_t_df, st_t_df, ia_t_df)
-        output.append(pd.concat([feat_df, feat_ia_df, feat_ia2_df], axis=1))
+        feat_ia2_df = add_kneighbor_aggregation_features(edge_t_df, X_t_df, st_t_df, ia_t_df, k=1)
+        feat_ia3_df = add_kneighbor_aggregation_features(edge_t_df, X_t_df, st_t_df, ia_t_df, k=2)
+        output.append(pd.concat([feat_df, feat_ia_df, feat_ia2_df, feat_ia3_df], axis=1))
 
     feat_df = pd.concat(output, axis=0)
     for col in feat_df.columns:
