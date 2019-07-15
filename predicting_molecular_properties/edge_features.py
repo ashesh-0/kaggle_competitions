@@ -3,10 +3,10 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm_notebook
 
-# from bond_features import get_electonegativity
-# from decorators import timer
-# from common_utils import dot, get_structure_data
-# from intermediate_atom_features import add_intermediate_atom_features
+from bond_features import get_electonegativity
+from decorators import timer
+from common_utils import dot, get_structure_data
+from intermediate_atom_features import add_intermediate_atom_features
 
 
 def get_symmetric_edges(edge_df):
