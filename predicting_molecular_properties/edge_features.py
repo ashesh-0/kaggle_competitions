@@ -153,6 +153,12 @@ def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, neighbors_d
         X_df, feat_df, how='left', left_on=['molecule_name', 'atom_index_0'], right_on=['molecule_name', 'atom_index'])
     X_df.drop('atom_index', axis=1, inplace=True)
 
+    # needed when skipping H atoms
+    new_cols = feat_df.columns.tolist()
+    new_cols.remove('molecule_name')
+    new_cols.remove('atom_index')
+    X_df[new_cols] = X_df[new_cols].fillna(-10)
+
     cols = []
     for col in feat_df.columns:
         if col in ['molecule_name', 'atom_index']:
@@ -163,6 +169,12 @@ def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, neighbors_d
     feat_df.columns = cols
     X_df = pd.merge(
         X_df, feat_df, how='left', left_on=['molecule_name', 'atom_index_1'], right_on=['molecule_name', 'atom_index'])
+
+    # needed when skipping H atoms
+    new_cols = feat_df.columns.tolist()
+    new_cols.remove('molecule_name')
+    new_cols.remove('atom_index')
+    X_df[new_cols] = X_df[new_cols].fillna(-10)
 
     X_df.drop('atom_index', axis=1, inplace=True)
     X_df.set_index('id', inplace=True)
@@ -175,6 +187,10 @@ def _get_kneighbor_aggregation_features(edge_df, X_df, structures_df, neighbors_
     neighbors_df.index.name = 'id'
     neighbors_df.rename({'atom_index': 'atom_index_0', 'nbr_atom_index': 'atom_index_1'}, axis=1, inplace=True)
     temp_X_df = get_structure_data(neighbors_df, structures_df)
+
+    # Skipping Hydrogen neighbors.
+    temp_X_df = temp_X_df[temp_X_df['atom_1'] != 'H'].copy()
+
     feat_df = _add_bond_atom_aggregation_features(edge_df, temp_X_df, structures_df)
     feat_df['molecule_name'] = temp_X_df['molecule_name']
     feat_df['nbr_distance'] = temp_X_df['nbr_distance'].astype(np.uint8)

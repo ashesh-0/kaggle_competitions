@@ -2,6 +2,29 @@ import numpy as np
 import pandas as pd
 
 
+def add_structure_data_to_edge(edges_df, structures_df):
+    edges_df = pd.merge(
+        edges_df,
+        structures_df[['molecule_name', 'atom_index', 'atom']],
+        how='left',
+        left_on=['molecule_name', 'atom_index_0'],
+        right_on=['molecule_name', 'atom_index'],
+    )
+    edges_df.drop('atom_index', axis=1, inplace=True)
+    edges_df.rename({'atom': 'atom_0'}, inplace=True, axis=1)
+
+    edges_df = pd.merge(
+        edges_df,
+        structures_df[['molecule_name', 'atom_index', 'atom']],
+        how='left',
+        left_on=['molecule_name', 'atom_index_1'],
+        right_on=['molecule_name', 'atom_index'],
+    )
+    edges_df.drop('atom_index', axis=1, inplace=True)
+    edges_df.rename({'atom': 'atom_1'}, inplace=True, axis=1)
+    return edges_df
+
+
 def get_structure_data(X, str_df):
     """
     Adds atom and xyz for both nodes of the bond 'atom_index_0','atom_index_1'
@@ -59,3 +82,20 @@ def find_cos(df, x_A, y_A, z_A, x_B, y_B, z_B, x_C, y_C, z_C):
     vector2 = C - B
     vector2 = vector2.divide(np.linalg.norm(vector2, axis=1), axis=0)
     return (vector1 * vector2).sum(axis=1)
+
+
+def plot_molecule(structures_df, mol_name, figsize=(10, 10)):
+    from mpl_toolkits.mplot3d import Axes3D
+    import matplotlib.pyplot as plt
+
+    temp_df = structures_df[structures_df.molecule_name == mol_name]
+    marker_size = {'C': 120, 'H': 10, 'N': 70, 'F': 90, 'O': 80}
+    marker_color = {'C': 'blue', 'H': 'orange', 'N': 'green', 'F': 'black', 'O': 'violet'}
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection='3d')
+    for atom in temp_df.atom.unique():
+        dta = temp_df[temp_df.atom == atom]
+        ax.scatter(dta.x, dta.y, dta.z, s=marker_size[atom], c=marker_color[atom], label=atom)
+        for _, row in dta.iterrows():
+            ax.text(row.x, row.y, row.z, row.atom_index, fontsize=20)
+    ax.legend()
