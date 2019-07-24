@@ -13,6 +13,53 @@ def _get_path_to_src(end_node, parents_dict):
     return list(reversed(output))
 
 
+def find_cycles(edges, molecule_name, max_depth):
+    node = 0
+    stack = []
+    cycle_array = []
+    _find_cycles(node, stack, edges, molecule_name, max_depth, cycle_array)
+    cycle_sets = []
+    output = []
+    for cycle in cycle_array:
+        if set(cycle) in cycle_sets:
+            continue
+        cycle_sets.append(set(cycle))
+        output.append(cycle)
+
+    return output
+
+
+def _find_cycles(node, stack, edges, molecule_name, max_depth, cycle_array):
+    """
+    dfs is implemented to get cycles
+    """
+    # cycle
+    if node in stack:
+        idx = stack.index(node)
+        cycle_array.append(stack[idx:].copy())
+        return
+
+    if len(stack) >= max_depth:
+        return
+
+    stack.append(node)
+
+    key = (molecule_name, node)
+    if key not in edges:
+        # print('Absent key', key)
+        stack.pop()
+        return
+
+    for child in edges[key]:
+        # we don't want to use the same edge in reverse fashion
+        if len(stack) > 1 and child == stack[-2]:
+            continue
+        _find_cycles(child, stack, edges, molecule_name, max_depth, cycle_array)
+
+    stack.pop()
+    return
+
+
 def bfs_for_neighbors(nodes, parents_dict, edges, molecule_name, kneighbor_dict, depth, max_depth):
     """
     stack is filled with the sequence of nodes from atom_index_0 to atom_index_1
@@ -120,6 +167,29 @@ def get_neighbor_atoms(edges_df, X_df, max_path_len=5):
                   'nbr_atom_index']] = kneighbor_df[['atom_index', 'nbr_distance', 'nbr_atom_index']].astype(np.uint8)
 
     return kneighbor_df
+
+
+def get_cycle_data(edges_df, structures_df):
+    """
+    Returns cycles present in the structure. each row corresponds to one cycle.
+    """
+    edges = edges_df.groupby(['molecule_name', 'atom_index_0'])['atom_index_1'].apply(list).to_dict()
+    molecule_names = structures_df.molecule_name.unique()
+    max_depth = 50
+    # note that 9 is the maximum number of non H atoms in the problem
+    max_cycle_len = 10
+    output = []
+    for mn in molecule_names:
+        cycles = find_cycles(edges, mn, max_depth)
+        for cycle in cycles:
+            assert len(cycle) <= max_cycle_len
+            row = [mn] + cycle + [-1] * (max_cycle_len - len(cycle))
+            output.append(row)
+
+    cols = ['molecule_name'] + list(map(str, list(range(10))))
+    df = pd.DataFrame(output, columns=cols)
+    df[cols[1:]] = df[cols[1:]].astype(np.int16)
+    return df.set_index('molecule_name')
 
 
 def get_intermediate_atoms_link(edges_df, X_df, max_path_len=10):
