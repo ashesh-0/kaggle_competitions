@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
+# from bond_features import get_lone_pair
 
-# from common_utils import get_structure_data, dot, find_distance_btw_point
+from common_utils_molecule_properties import get_structure_data, dot, find_distance_btw_point
 
 
 def add_intermediate_atom_features(edges_df, X_df, structures_df, ia_df):
@@ -67,6 +68,9 @@ def add_CC_hybridization_feature(ia_df, edges_df, X_df, structures_df):
         right_on=['molecule_name', 'atom_index'])
     df.rename({'edge_count': 'edge_count_nbr_0', 'atom': 'atom_nbr_0'}, inplace=True, axis=1)
     df.drop(['atom_index'], axis=1, inplace=True)
+
+    df['lone_pair_nbr_1'] = df['atom_nbr_1'].map(get_lone_pair()).astype(np.float16)
+    df['lone_pair_nbr_0'] = df['atom_nbr_0'].map(get_lone_pair()).astype(np.float16)
 
     df['CC_interm'] = (df['atom_nbr_1'] == 'C') & (df['atom_nbr_0'] == 'C')
     # sp2,sp3,sp

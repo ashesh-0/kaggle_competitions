@@ -3,10 +3,11 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm_notebook
 
-from bond_features import get_electonegativity
-from decorators import timer
 from common_utils_molecule_properties import dot, get_structure_data
-from intermediate_atom_features import add_intermediate_atom_features
+
+# from bond_features import get_electonegativity, get_lone_pair
+# from decorators import timer
+# from intermediate_atom_features import add_intermediate_atom_features
 
 
 def get_symmetric_edges(edge_df):
@@ -23,7 +24,7 @@ def get_symmetric_edges(edge_df):
     return edge_df
 
 
-def add_electronetivity(df):
+def add_electronetivity_and_lone_pair(df):
     """
     Adds electronegativity data for atom_0 and atom_1. It also adds difference of electronegativity.
     """
@@ -38,6 +39,10 @@ def add_electronetivity(df):
     df = df.join(electro_df, how='left', on='atom_1')
     df.rename({'Electronegativity': 'Electronegativity_1'}, axis=1, inplace=True)
     df['Electronegativity_diff'] = df['Electronegativity_1'] - df['Electronegativity_0']
+
+    # lone pair
+    df['atom_0_lone_pair'] = df['atom_0'].map(get_lone_pair())
+    df['atom_1_lone_pair'] = df['atom_1'].map(get_lone_pair())
     return df
 
 
@@ -65,7 +70,7 @@ def add_features_to_edges(edge_df, structures_df):
     edge_df.rename({'atom': 'atom_1'}, axis=1, inplace=True)
     edge_df.drop(['atom_index'], axis=1, inplace=True)
 
-    return add_electronetivity(edge_df)
+    return add_electronetivity_and_lone_pair(edge_df)
 
 
 def add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df):
@@ -79,6 +84,28 @@ def add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df):
     edge_df = get_symmetric_edges(edge_df)
     X_df = add_neighbor_count_features(edge_df, X_df, structures_df)
     add_bond_atom_aggregation_features(edge_df, X_df, structures_df, ia_df, neighbors_df)
+    # remove useless features.
+
+    useless_cols = [
+        'atom_0_lone_pair', '1nbr_ai0_EF_atom_index_1_nbr_lone_pair_sum',
+        '1nbr_ai0_EF_atom_index_0_induced_elecneg_along', '1nbr_ai0_EF_atom_index_0_induced_elecneg_perp',
+        '1nbr_ai0_EF_atom_index_0_nbr_bond_angle_mean', '1nbr_ai0_EF_atom_index_0_nbr_distance_mean',
+        '2nbr_ai0_EF_atom_index_0_induced_elecneg_along', '2nbr_ai0_EF_atom_index_0_induced_elecneg_perp',
+        '2nbr_ai0_EF_atom_index_0_nbr_bond_angle_mean', '2nbr_ai0_EF_atom_index_0_nbr_distance_mean',
+        '2nbr_ai0_EF_atom_index_1_nbr_distance_max', '2nbr_ai0_EF_atom_index_1_nbr_distance_mean',
+        '2nbr_ai0_EF_atom_index_1_nbr_distance_min', '2nbr_ai0_EF_atom_index_1_nbr_distance_std',
+        '2nbr_ai1_EF_atom_index_0_induced_elecneg_along', '2nbr_ai1_EF_atom_index_0_nbr_distance_mean',
+        '2nbr_ai1_EF_atom_index_1_nbr_distance_max', '2nbr_ai1_EF_atom_index_1_nbr_distance_mean',
+        '2nbr_ai1_EF_atom_index_1_nbr_distance_min', '2nbr_ai1_EF_atom_index_1_nbr_distance_std',
+        'ai0_2NBR_EF_atom_index_0_nbr_distance_mean', 'ai0_3NBR_EF_atom_index_1_nbr_bond_angle_min',
+        'ai0_3NBR_EF_atom_index_1_nbr_distance_max', 'ai0_3NBR_EF_atom_index_1_nbr_distance_mean',
+        'ai0_3NBR_EF_atom_index_1_nbr_distance_std', 'ai1_2NBR_EF_atom_index_1_nbr_distance_max',
+        'ai1_2NBR_EF_atom_index_1_nbr_distance_mean', 'ai1_2NBR_EF_atom_index_1_nbr_distance_std',
+        'ai1_3NBR_EF_atom_index_1_nbr_bond_angle_mean', 'ai1_3NBR_EF_atom_index_1_nbr_bond_angle_min',
+        'ai1_3NBR_EF_atom_index_1_nbr_distance_max', 'ai1_3NBR_EF_atom_index_1_nbr_distance_mean',
+        'ai1_3NBR_EF_atom_index_1_nbr_distance_std', 'ai1_3NBR_EF_induced_elecneg_along_diff'
+    ]
+    X_df.drop(useless_cols, axis=1, inplace=True)
     return X_df
 
 
@@ -93,10 +120,14 @@ def _induced_electronegativity_features(merged_df, df, atom_index):
     return pd.concat([elec_along_bond_df, elec_perp_bond_df], axis=1)
 
 
-def _distance_features(merged_df, atom_index):
-    distance_feature = merged_df.groupby('id').agg({'distance': ['min', 'max', 'mean', 'std']})['distance']
-    distance_feature.columns = [atom_index + '_nbr_distance_' + c for c in distance_feature.columns]
-    return distance_feature
+def _distance_and_lone_pair_features(merged_df, atom_index):
+    feature_df = merged_df.groupby('id').agg({
+        'distance': ['min', 'max', 'mean', 'std'],
+        'atom_0_lone_pair': 'sum',
+    })
+    feature_df.rename({'atom_0_lone_pair': 'nbr_lone_pair', 'distance': 'nbr_distance'}, axis=1, inplace=True, level=0)
+    feature_df.columns = [f'{atom_index}_{a}_{b}' for a, b in feature_df.columns]
+    return feature_df
 
 
 def _angle_features(merged_df, atom_index):
@@ -126,14 +157,15 @@ def _get_bond_atom_aggregation_features_one_atom(df, edge_df, atom_index):
     # atom_index_1
     mdf = mdf[mdf['atom_index_zero'] != mdf[other_atom_index]]
     electro_neg_features_df = _induced_electronegativity_features(mdf, df, atom_index)
-    distance_features_df = _distance_features(mdf, atom_index)
+    distance_features_df = _distance_and_lone_pair_features(mdf, atom_index)
     angle_features_df = _angle_features(mdf, atom_index)
+
     return pd.concat([electro_neg_features_df, distance_features_df, angle_features_df], axis=1)
 
 
 @timer('EdgeFeatures')
 def add_electronetivity_features(X_df):
-    return add_electronetivity(X_df)
+    return add_electronetivity_and_lone_pair(X_df)
 
 
 def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, neighbors_df):
@@ -245,7 +277,7 @@ def add_bond_atom_aggregation_features(
         structures_df,
         ia_df,
         neighbors_df,
-        step=100,
+        step=2000,
 ):
     """
     For each row in X_df, we compute some features by aggregating on all edges for atom_index_0 and atom_index_1
@@ -292,6 +324,8 @@ def _fill_nan_aggregation_features(feat_df):
         'EF_atom_index_1_induced_elecneg_perp',
         'EF_atom_index_1_nbr_distance_std',
         'EF_atom_index_1_nbr_bond_angle_std',
+        'EF_atom_index_0_nbr_lone_pair_sum',
+        'EF_atom_index_1_nbr_lone_pair_sum',
     ]
     feat_df[nan_with_0] = feat_df[nan_with_0].fillna(0)
 
@@ -318,6 +352,7 @@ def _add_bond_atom_aggregation_features(edge_df, X_df, structures_df):
             'atom_index_0': 'atom_index_zero',
             'atom_index_1': 'atom_index_one',
         }, axis=1, inplace=True)
+
     df = X_df[['molecule_name', 'atom_index_0', 'atom_index_1']].copy()
 
     # bond vector

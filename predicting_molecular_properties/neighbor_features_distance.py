@@ -5,7 +5,7 @@ Features are computed on Neighbors.
 import numpy as np
 import pandas as pd
 from bond_features import get_bond_data
-from common_utils import find_distance_btw_point
+from common_utils_molecule_properties import find_distance_btw_point
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm_notebook
 

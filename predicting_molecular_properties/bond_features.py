@@ -37,6 +37,13 @@ def add_bond_features(X_df):
     return X_df
 
 
+def get_lone_pair():
+    """
+    Pi donars increase the value
+    """
+    return {'C': 0, 'H': 0, 'F': 0.5, 'N': 1, 'O': 0.8}
+
+
 def get_electonegativity():
     df = pd.Series(index=['H', 'O', 'C', 'N', 'F'], dtype=np.float16)
     val_dict = {

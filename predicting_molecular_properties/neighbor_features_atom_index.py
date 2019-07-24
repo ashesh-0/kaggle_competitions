@@ -5,9 +5,8 @@ Note that in a generic case, there can be low_neighbors (with a lower index) or 
 """
 import numpy as np
 import pandas as pd
-from common_utils import find_distance_btw_point, find_cos
+from common_utils_molecule_properties import find_distance_btw_point, find_cos
 from tqdm import tqdm_notebook
-from sklearn.preprocessing import LabelEncoder
 
 
 def add_neighbors_features(df, structures_df, atom_encoder, neighbor_cnt=3):

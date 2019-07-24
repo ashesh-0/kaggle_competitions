@@ -1,10 +1,10 @@
-from intermediate_atoms import add_intermediate_atom_stats
-from distance_features import add_distance_features
-from molecule_features import add_molecule_features
-from neighbor_features_atom_index import add_neighbors_features
-from bond_features import add_bond_features
-from edge_features import add_edge_features
-from nbr_based_atom_types import get_atom_type, add_atom_type_both_indices
+# from intermediate_atoms import add_intermediate_atom_stats
+# from distance_features import add_distance_features
+# from molecule_features import add_molecule_features
+# from neighbor_features_atom_index import add_neighbors_features
+# from bond_features import add_bond_features
+# from edge_features import add_edge_features
+# from nbr_based_atom_types import get_atom_type, add_atom_type_both_indices
 import pandas as pd
 
 
@@ -20,12 +20,13 @@ def get_X(X_df, structures_df, atom_encoder, edge_df, ia_df, neighbors_df):
     # ascribe atom_type for both neighbors.
     X_df = add_atom_type_both_indices(X_df, atom_type_df)
 
+    X_df = add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df)
+
     # it must be called after distance features
     X_df = add_bond_features(X_df)
     # it must be called after distance features.
     X_df = add_neighbors_features(X_df, structures_df, atom_encoder)
 
-    X_df = add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df)
     # X_df = add_intermediate_atom_stats(X_df, structures_df)
     bond_encoding(X_df)
     return X_df

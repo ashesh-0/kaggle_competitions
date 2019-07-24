@@ -9,9 +9,9 @@ Different types of Oxygen:
     N=O
 """
 import pandas as pd
-from common_utils_molecule_properties import add_structure_data_to_edge
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
+from common_utils_molecule_properties import add_structure_data_to_edge
 
 # from decorators import timer
 
@@ -95,13 +95,14 @@ def get_sorted_types():
     sorted by number of occurances.
     """
     dtypes = [
-        'C0F0H0N0O1', 'C0F0H0N0O2', 'C0F0H0N0O3', 'C0F0H0N1O0', 'C0F0H0N1O1', 'C0F0H0N1O2', 'C0F0H0N2O0', 'C0F0H0N2O1',
-        'C0F0H0N3O0', 'C0F0H1N0O0', 'C0F0H1N0O2', 'C0F0H1N1O0', 'C0F0H1N1O1', 'C0F0H1N2O0', 'C0F0H2N0O0', 'C0F0H2N0O2',
-        'C0F0H2N1O0', 'C0F0H3N0O0', 'C0F0H3N0O1', 'C0F0H3N1O0', 'C0F0H4N0O0', 'C0F1H0N1O1', 'C0F1H0N2O0', 'C1F0H0N0O0',
-        'C1F0H0N0O1', 'C1F0H0N0O2', 'C1F0H0N1O0', 'C1F0H0N1O1', 'C1F0H0N2O0', 'C1F0H1N0O0', 'C1F0H1N0O1', 'C1F0H1N0O2',
-        'C1F0H1N1O0', 'C1F0H2N0O0', 'C1F0H2N0O1', 'C1F0H2N1O0', 'C1F0H3N0O0', 'C1F1H0N0O1', 'C1F1H0N1O0', 'C1F3H0N0O0',
-        'C2F0H0N0O0', 'C2F0H0N0O1', 'C2F0H0N0O2', 'C2F0H0N1O0', 'C2F0H1N0O0', 'C2F0H1N0O1', 'C2F0H1N1O0', 'C2F0H2N0O0',
-        'C2F1H0N0O0', 'C3F0H0N0O0', 'C3F0H0N0O1', 'C3F0H0N1O0', 'C3F0H1N0O0', 'C4F0H0N0O0'
+        'C0F2H0N0O0', 'C0F1H0N0O1', 'C1F2H0N0O0', 'C0F3H0N0O0', 'C0F1H0N0O0', 'C0F1H0N1O0', 'C1F1H0N0O0', 'C0F0H2N0O1',
+        'C0F0H1N0O1', 'C0F0H0N0O1', 'C0F0H0N0O2', 'C0F0H0N0O3', 'C0F0H0N1O0', 'C0F0H0N1O1', 'C0F0H0N1O2', 'C0F0H0N2O0',
+        'C0F0H0N2O1', 'C0F0H0N3O0', 'C0F0H1N0O0', 'C0F0H1N0O2', 'C0F0H1N1O0', 'C0F0H1N1O1', 'C0F0H1N2O0', 'C0F0H2N0O0',
+        'C0F0H2N0O2', 'C0F0H2N1O0', 'C0F0H3N0O0', 'C0F0H3N0O1', 'C0F0H3N1O0', 'C0F0H4N0O0', 'C0F1H0N1O1', 'C0F1H0N2O0',
+        'C1F0H0N0O0', 'C1F0H0N0O1', 'C1F0H0N0O2', 'C1F0H0N1O0', 'C1F0H0N1O1', 'C1F0H0N2O0', 'C1F0H1N0O0', 'C1F0H1N0O1',
+        'C1F0H1N0O2', 'C1F0H1N1O0', 'C1F0H2N0O0', 'C1F0H2N0O1', 'C1F0H2N1O0', 'C1F0H3N0O0', 'C1F1H0N0O1', 'C1F1H0N1O0',
+        'C1F3H0N0O0', 'C2F0H0N0O0', 'C2F0H0N0O1', 'C2F0H0N0O2', 'C2F0H0N1O0', 'C2F0H1N0O0', 'C2F0H1N0O1', 'C2F0H1N1O0',
+        'C2F0H2N0O0', 'C2F1H0N0O0', 'C3F0H0N0O0', 'C3F0H0N0O1', 'C3F0H0N1O0', 'C3F0H1N0O0', 'C4F0H0N0O0'
     ]
     return dtypes
 
@@ -131,6 +132,7 @@ def add_atom_type(df, atom_type_df, atom_index_col):
         left_on=['molecule_name', atom_index_col],
         right_on=['molecule_name', 'atom_index__'])
     df.drop('atom_index__', axis=1, inplace=True)
+    df['neighbor_type'] = df['neighbor_type'].fillna(-10)
     return df
 
 
@@ -195,7 +197,8 @@ def get_atom_type(edges_df, structures_df):
 
     # from string to number
     types = set(feature_df['neighbor_type'].unique())
-    assert types.issubset(set(get_sorted_types()))
+    extra_types = types - set(get_sorted_types())
+    assert len(extra_types) == 0, extra_types
     lb = LabelEncoder()
     lb.fit(get_sorted_types())
     feature_df['neighbor_type'] = lb.transform(feature_df['neighbor_type']).astype(np.int16)
