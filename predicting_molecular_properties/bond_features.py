@@ -9,7 +9,7 @@ Received idea from https://www.kaggle.com/adrianoavelar/eachtype
 """
 import pandas as pd
 import numpy as np
-from common_utils import find_distance_btw_point
+from common_utils_molecule_properties import find_distance_btw_point
 
 
 def add_bond_features(X_df):
@@ -56,44 +56,48 @@ def get_electonegativity():
 def get_bond_data(return_limited=True):
     # https://chem.libretexts.org/Bookshelves/Physical_and_Theoretical_Chemistry_Textbook_Maps/Supplemental_Modules_(Physical_and_Theoretical_Chemistry)/Chemical_Bonding/Fundamentals_of_Chemical_Bonding/Chemical_Bonds/Bond_Lengths_and_Energies
     # http://www.wiredchemist.com/chemistry/data/bond_energies_lengths.html
+    # https://en.wikipedia.org/wiki/Carbon%E2%80%93nitrogen_bond
     # CH
     # HH
     # NH
     df = pd.DataFrame(
         [
             # H bonds
-            ['H', 'C', 0, 1.09, 413],
-            ['H', 'H', 0, 0.74, 436],
-            ['H', 'N', 0, 1.01, 391],
-            ['H', 'O', 0, 0.96, 459],
-            ['H', 'F', 0, 0.92, 565],
+            ['H', 'C', 1, 1.09, 413],
+            ['H', 'H', 1, 0.74, 436],
+            ['H', 'N', 1, 1.01, 391],
+            ['H', 'O', 1, 0.96, 459],
+            ['H', 'F', 1, 0.92, 565],
             # C-N bonds
-            ['C', 'N', 0, 1.47, 308],
-            ['C', 'N', 1, 1.35, 450],
-            ['C', 'N', 2, 1.27, 615],
+            ['C', 'N', 1, 1.47, 308],
+            ['C', 'N', 1, 1.39, 350],  #incorrect bond energy
+            ['C', 'N', 1.5, 1.37, 450],  #pyrole
+            ['C', 'N', 1.5, 1.33, 450],  #amide,pyridines
+            # ['C', 'N', 2, 1.35, 450],
+            ['C', 'N', 2, 1.27, 615],  #imines
             ['C', 'N', 3, 1.16, 887],
-            ['C', 'F', 0, 1.35, 205],
+            ['C', 'F', 1, 1.35, 205],
             # C-O bonds
-            ['C', 'O', 0, 1.40, 360],
-            ['C', 'O', 1, 1.23, 799],
-            ['C', 'O', 2, 1.14, 1072],
+            ['C', 'O', 1, 1.40, 360],
+            ['C', 'O', 2, 1.23, 799],
+            ['C', 'O', 3, 1.14, 1072],
             # C-C bonds
-            ['C', 'C', 0, 1.54, 348],
-            ['C', 'C', 1, 1.34, 614],
-            ['C', 'C', 0, 1.20, 839],
+            ['C', 'C', 1, 1.54, 348],
+            ['C', 'C', 2, 1.34, 614],
+            ['C', 'C', 3, 1.20, 839],
             # N-O
-            ['N', 'O', 0, 1.4, 201],
-            ['N', 'O', 1, 1.21, 607],
-            # ['N', 'N', 0, 1.45, 167],
-            ['N', 'N', 0, 1.25, 167],
-            ['N', 'N', 0, 1.10, 167],
-            ['N', 'F', 0, 1.36, 283],
+            ['N', 'O', 1, 1.4, 201],
+            ['N', 'O', 2, 1.21, 607],
+            ['N', 'N', 1, 1.45, 167],
+            ['N', 'N', 2, 1.25, 167],
+            ['N', 'N', 3, 1.10, 167],
+            ['N', 'F', 1, 1.36, 283],
             # o-o
-            ['O', 'O', 0, 1.48, 142],
-            ['O', 'O', 1, 1.21, 494],
-            ['O', 'F', 0, 1.42, 190],
+            ['O', 'O', 1, 1.48, 142],
+            ['O', 'O', 2, 1.21, 494],
+            ['O', 'F', 1, 1.42, 190],
             # F
-            ['F', 'F', 0, 1.42, 155],
+            ['F', 'F', 1, 1.42, 155],
         ],
         columns=['atom_0', 'atom_1', 'bond_type', 'standard_bond_length', 'standard_bond_energy'],
     )
