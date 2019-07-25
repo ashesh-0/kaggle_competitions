@@ -86,26 +86,6 @@ def add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df):
     add_bond_atom_aggregation_features(edge_df, X_df, structures_df, ia_df, neighbors_df)
     # remove useless features.
 
-    useless_cols = [
-        'atom_0_lone_pair', '1nbr_ai0_EF_atom_index_1_nbr_lone_pair_sum',
-        '1nbr_ai0_EF_atom_index_0_induced_elecneg_along', '1nbr_ai0_EF_atom_index_0_induced_elecneg_perp',
-        '1nbr_ai0_EF_atom_index_0_nbr_bond_angle_mean', '1nbr_ai0_EF_atom_index_0_nbr_distance_mean',
-        '2nbr_ai0_EF_atom_index_0_induced_elecneg_along', '2nbr_ai0_EF_atom_index_0_induced_elecneg_perp',
-        '2nbr_ai0_EF_atom_index_0_nbr_bond_angle_mean', '2nbr_ai0_EF_atom_index_0_nbr_distance_mean',
-        '2nbr_ai0_EF_atom_index_1_nbr_distance_max', '2nbr_ai0_EF_atom_index_1_nbr_distance_mean',
-        '2nbr_ai0_EF_atom_index_1_nbr_distance_min', '2nbr_ai0_EF_atom_index_1_nbr_distance_std',
-        '2nbr_ai1_EF_atom_index_0_induced_elecneg_along', '2nbr_ai1_EF_atom_index_0_nbr_distance_mean',
-        '2nbr_ai1_EF_atom_index_1_nbr_distance_max', '2nbr_ai1_EF_atom_index_1_nbr_distance_mean',
-        '2nbr_ai1_EF_atom_index_1_nbr_distance_min', '2nbr_ai1_EF_atom_index_1_nbr_distance_std',
-        'ai0_2NBR_EF_atom_index_0_nbr_distance_mean', 'ai0_3NBR_EF_atom_index_1_nbr_bond_angle_min',
-        'ai0_3NBR_EF_atom_index_1_nbr_distance_max', 'ai0_3NBR_EF_atom_index_1_nbr_distance_mean',
-        'ai0_3NBR_EF_atom_index_1_nbr_distance_std', 'ai1_2NBR_EF_atom_index_1_nbr_distance_max',
-        'ai1_2NBR_EF_atom_index_1_nbr_distance_mean', 'ai1_2NBR_EF_atom_index_1_nbr_distance_std',
-        'ai1_3NBR_EF_atom_index_1_nbr_bond_angle_mean', 'ai1_3NBR_EF_atom_index_1_nbr_bond_angle_min',
-        'ai1_3NBR_EF_atom_index_1_nbr_distance_max', 'ai1_3NBR_EF_atom_index_1_nbr_distance_mean',
-        'ai1_3NBR_EF_atom_index_1_nbr_distance_std', 'ai1_3NBR_EF_induced_elecneg_along_diff'
-    ]
-    X_df.drop(useless_cols, axis=1, inplace=True)
     return X_df
 
 
@@ -283,6 +263,25 @@ def add_bond_atom_aggregation_features(
     For each row in X_df, we compute some features by aggregating on all edges for atom_index_0 and atom_index_1
     separately.
     """
+    useless_cols = [
+        '1nbr_ai0_EF_atom_index_1_nbr_lone_pair_sum', '1nbr_ai0_EF_atom_index_0_induced_elecneg_along',
+        '1nbr_ai0_EF_atom_index_0_induced_elecneg_perp', '1nbr_ai0_EF_atom_index_0_nbr_bond_angle_mean',
+        '1nbr_ai0_EF_atom_index_0_nbr_distance_mean', '2nbr_ai0_EF_atom_index_0_induced_elecneg_along',
+        '2nbr_ai0_EF_atom_index_0_induced_elecneg_perp', '2nbr_ai0_EF_atom_index_0_nbr_bond_angle_mean',
+        '2nbr_ai0_EF_atom_index_0_nbr_distance_mean', '2nbr_ai0_EF_atom_index_1_nbr_distance_max',
+        '2nbr_ai0_EF_atom_index_1_nbr_distance_mean', '2nbr_ai0_EF_atom_index_1_nbr_distance_min',
+        '2nbr_ai0_EF_atom_index_1_nbr_distance_std', '2nbr_ai1_EF_atom_index_0_induced_elecneg_along',
+        '2nbr_ai1_EF_atom_index_0_nbr_distance_mean', '2nbr_ai1_EF_atom_index_1_nbr_distance_max',
+        '2nbr_ai1_EF_atom_index_1_nbr_distance_mean', '2nbr_ai1_EF_atom_index_1_nbr_distance_min',
+        '2nbr_ai1_EF_atom_index_1_nbr_distance_std', 'ai0_2NBR_EF_atom_index_0_nbr_distance_mean',
+        'ai0_3NBR_EF_atom_index_1_nbr_bond_angle_min', 'ai0_3NBR_EF_atom_index_1_nbr_distance_max',
+        'ai0_3NBR_EF_atom_index_1_nbr_distance_mean', 'ai0_3NBR_EF_atom_index_1_nbr_distance_std',
+        'ai1_2NBR_EF_atom_index_1_nbr_distance_max', 'ai1_2NBR_EF_atom_index_1_nbr_distance_mean',
+        'ai1_2NBR_EF_atom_index_1_nbr_distance_std', 'ai1_3NBR_EF_atom_index_1_nbr_bond_angle_mean',
+        'ai1_3NBR_EF_atom_index_1_nbr_bond_angle_min', 'ai1_3NBR_EF_atom_index_1_nbr_distance_max',
+        'ai1_3NBR_EF_atom_index_1_nbr_distance_mean', 'ai1_3NBR_EF_atom_index_1_nbr_distance_std',
+        'ai1_3NBR_EF_induced_elecneg_along_diff'
+    ]
     label = LabelEncoder()
     structures_df['m_id'] = label.fit_transform(structures_df['molecule_name'])
     X_df['m_id'] = label.transform(X_df['molecule_name'])
@@ -302,6 +301,7 @@ def add_bond_atom_aggregation_features(
         feat_ia3_df = add_kneighbor_along_path_aggregation_features(edge_t_df, X_t_df, st_t_df, ia_t_df, k=2)
         feat_nbr_df = add_kneighbor_aggregation_features(edge_t_df, X_t_df, st_t_df, neighbors_t_df)
         output.append(pd.concat([feat_df, feat_ia_df, feat_ia2_df, feat_ia3_df, feat_nbr_df], axis=1))
+        output[-1].drop(useless_cols, axis=1, inplace=True)
 
     for feat_df in output:
         for col in feat_df.columns:
