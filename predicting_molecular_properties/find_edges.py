@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from bond_features import get_bond_data
+from common_data_molecule_properties import get_bond_data
 from tqdm import tqdm
 
 
@@ -13,7 +13,7 @@ def _find_bond_type(atom_0, atom_1, dis, bonds_dict):
 
 
 def _get_bond_dict():
-    bonds_df = get_bond_data(return_limited=False)[['atom_0', 'atom_1', 'standard_bond_length', 'bond_type']]
+    bonds_df = get_bond_data()[['atom_0', 'atom_1', 'standard_bond_length', 'bond_type']]
     bonds_dict = bonds_df.groupby(['atom_0', 'atom_1']).agg(list).to_dict()
     for k1 in bonds_dict:
         for k2 in bonds_dict[k1]:

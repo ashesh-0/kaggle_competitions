@@ -4,7 +4,7 @@ Features are computed on Neighbors.
 """
 import numpy as np
 import pandas as pd
-from bond_features import get_bond_data
+from common_data_molecule_properties import get_bond_data
 from common_utils_molecule_properties import find_distance_btw_point
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm_notebook
@@ -42,7 +42,7 @@ def _get_features(df, atom_enc, bond_len_factor, for_atom_0, empty_df_index):
 def _get_raw_features(df, atom_enc, bond_len_factor, for_atom_0):
     assert 'standard_bond_length' not in df.columns
 
-    bond_data_df = get_bond_data(return_limited=False)[[
+    bond_data_df = get_bond_data()[[
         'atom_0',
         'atom_1',
         'bond_type',

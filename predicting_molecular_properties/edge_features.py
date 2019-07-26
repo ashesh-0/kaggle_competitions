@@ -4,10 +4,9 @@ from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm_notebook
 
 from common_utils_molecule_properties import dot, get_structure_data
+from common_data_molecule_properties import get_electonegativity, get_lone_pair
 
-# from bond_features import get_electonegativity, get_lone_pair
 # from decorators import timer
-# from intermediate_atom_features import add_intermediate_atom_features
 
 
 def get_symmetric_edges(edge_df):
@@ -70,7 +69,12 @@ def add_features_to_edges(edge_df, structures_df):
     edge_df.rename({'atom': 'atom_1'}, axis=1, inplace=True)
     edge_df.drop(['atom_index'], axis=1, inplace=True)
 
-    return add_electronetivity_and_lone_pair(edge_df)
+    output_df = add_electronetivity_and_lone_pair(edge_df)
+    output_df['Electronegativity_diff'] = output_df['Electronegativity_diff']
+    output_df['Electronegativity_diff_dis1'] = output_df['Electronegativity_diff'] / output_df['distance']
+    output_df['Electronegativity_diff_dis2'] = output_df['Electronegativity_diff'] / output_df['distance'].pow(2)
+
+    return output_df
 
 
 def add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df):
@@ -87,6 +91,30 @@ def add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df):
     # remove useless features.
 
     return X_df
+
+
+def _induced_electronegativity_features_dis_normalized(merged_df, df, atom_index):
+    elec_df = merged_df.groupby('id')[['enegv_x_dis1', 'enegv_y_dis1', 'enegv_z_dis1']].sum()
+    # bv: bond vector (for each row in df)
+    elec_along_bond_df = dot(elec_df, df, ['enegv_x_dis1', 'enegv_y_dis1', 'enegv_z_dis1'],
+                             ['bondv_x', 'bondv_y', 'bondv_z']).dropna()
+    elec_perp_bond_df = elec_df.pow(2).sum(axis=1).pow(0.5) - elec_along_bond_df.abs()
+
+    elec_perp_bond_df = elec_perp_bond_df.to_frame(atom_index + '_induced_elecneg_dis1_perp').fillna(0)
+    elec_along_bond_df = elec_along_bond_df.to_frame(atom_index + '_induced_elecneg_dis1_along').fillna(0)
+    return pd.concat([elec_along_bond_df, elec_perp_bond_df], axis=1)
+
+
+def _induced_electronegativity_features_dis_normalized2(merged_df, df, atom_index):
+    elec_df = merged_df.groupby('id')[['enegv_x_dis2', 'enegv_y_dis2', 'enegv_z_dis2']].sum()
+    # bv: bond vector (for each row in df)
+    elec_along_bond_df = dot(elec_df, df, ['enegv_x_dis2', 'enegv_y_dis2', 'enegv_z_dis2'],
+                             ['bondv_x', 'bondv_y', 'bondv_z']).dropna()
+    elec_perp_bond_df = elec_df.pow(2).sum(axis=1).pow(0.5) - elec_along_bond_df.abs()
+
+    elec_perp_bond_df = elec_perp_bond_df.to_frame(atom_index + '_induced_elecneg_dis2_perp').fillna(0)
+    elec_along_bond_df = elec_along_bond_df.to_frame(atom_index + '_induced_elecneg_dis2_along').fillna(0)
+    return pd.concat([elec_along_bond_df, elec_perp_bond_df], axis=1)
 
 
 def _induced_electronegativity_features(merged_df, df, atom_index):
@@ -137,10 +165,13 @@ def _get_bond_atom_aggregation_features_one_atom(df, edge_df, atom_index):
     # atom_index_1
     mdf = mdf[mdf['atom_index_zero'] != mdf[other_atom_index]]
     electro_neg_features_df = _induced_electronegativity_features(mdf, df, atom_index)
+    electro_neg_features_dis1_df = _induced_electronegativity_features_dis_normalized(mdf, df, atom_index)
+    # electro_neg_features_dis2_df = _induced_electronegativity_features_dis_normalized2(mdf, df, atom_index)
     distance_features_df = _distance_and_lone_pair_features(mdf, atom_index)
     angle_features_df = _angle_features(mdf, atom_index)
 
-    return pd.concat([electro_neg_features_df, distance_features_df, angle_features_df], axis=1)
+    return pd.concat(
+        [electro_neg_features_df, electro_neg_features_dis1_df, distance_features_df, angle_features_df], axis=1)
 
 
 @timer('EdgeFeatures')
@@ -346,6 +377,12 @@ def _fill_nan_aggregation_features(feat_df):
 def _add_bond_atom_aggregation_features(edge_df, X_df, structures_df):
     edge_df[['enegv_x', 'enegv_y', 'enegv_z']] = edge_df[['x', 'y', 'z']].multiply(
         edge_df['Electronegativity_diff'], axis=0)
+
+    edge_df[['enegv_x_dis1', 'enegv_y_dis1', 'enegv_z_dis1']] = edge_df[['x', 'y', 'z']].multiply(
+        edge_df['Electronegativity_diff_dis1'], axis=0)
+
+    edge_df[['enegv_x_dis2', 'enegv_y_dis2', 'enegv_z_dis2']] = edge_df[['x', 'y', 'z']].multiply(
+        edge_df['Electronegativity_diff_dis2'], axis=0)
 
     edge_df.rename(
         {

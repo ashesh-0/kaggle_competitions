@@ -94,9 +94,11 @@ def train_for_each_output(catboost_config_for_each_output, train_X_df, Y_df, no_
 
 def train_for_each_type(catboost_config_for_each_type, train_X_df, Y_df, no_validation=False):
     models = {}
+    anal_dict = {}
     predictions = []
     for type_enc in train_X_df['type_enc'].unique():
         print(type_enc)
+        anal_dict[type_enc] = {}
         X_t = train_X_df[train_X_df.type_enc == type_enc]
 
         if no_validation:
@@ -110,10 +112,12 @@ def train_for_each_type(catboost_config_for_each_type, train_X_df, Y_df, no_vali
         train_Y = Y_df.loc[train_X.index]
         models[type_enc] = train(catboost_config_for_each_type[type_enc], train_X, train_Y, test_X, test_Y,
                                  train_X_df.shape[0])
+        anal_dict[type_enc]['train'] = pd.Series(models[type_enc].predict(train_X), index=train_X.index)
         print('Best iter', models[type_enc].best_iteration_, catboost_config_for_each_type[type_enc])
 
         if no_validation is False:
-            predictions.append(pd.Series(models[type_enc].predict(test_X), index=test_X.index))
+            anal_dict[type_enc]['test'] = pd.Series(models[type_enc].predict(test_X), index=test_X.index)
+            predictions.append(anal_dict[type_enc]['test'])
             print('Eval', eval_metric(test_Y.values, predictions[-1].values, test_X['type_enc']))
 
     if no_validation is False:
@@ -121,4 +125,4 @@ def train_for_each_type(catboost_config_for_each_type, train_X_df, Y_df, no_vali
         actual = Y_df.loc[prediction_df.index]
         print('Final metric', eval_metric(actual.values, prediction_df.values, X.loc[actual.index, 'type_enc']))
 
-    return models
+    return (models, anal_dict)
