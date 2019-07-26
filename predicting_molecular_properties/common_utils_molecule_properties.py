@@ -67,6 +67,44 @@ def find_distance_btw_point(df, x0, y0, z0, x1, y1, z1):
     return np.sqrt((df[x0] - df[x1]).pow(2) + (df[y0] - df[y1]).pow(2) + (df[z0] - df[z1]).pow(2))
 
 
+def find_perpendicular_to_plane(df, df_plane, x, y, z, mx, my, mz):
+    assert df.index.equals(df_plane.index)
+    m_norm = np.sqrt(np.square(df_plane[[mx, my, mz]]).sum(axis=1))
+    output_df = pd.Series(
+        dot(df, df_plane, [x, y, z], [mx, my, mz]) / m_norm, index=df.index).to_frame('plane_component')
+    output_df['x'] = (df_plane[mx] / m_norm) * output_df['plane_component']
+    output_df['y'] = (df_plane[my] / m_norm) * output_df['plane_component']
+    output_df['z'] = (df_plane[mz] / m_norm) * output_df['plane_component']
+    return output_df[['x', 'y', 'z']]
+
+
+def find_projection_on_plane(df, df_plane, x, y, z, mx, my, mz, normalize=True):
+    output_df = find_perpendicular_to_plane(df, df_plane, x, y, z, mx, my, mz)
+    assert set(output_df.columns) == set(['x', 'y', 'z'])
+    output_df['x'] = df[x] - output_df['x']
+    output_df['y'] = df[y] - output_df['y']
+    output_df['z'] = df[z] - output_df['z']
+    if normalize:
+        length = np.sqrt(np.square(output_df).sum(axis=1))
+        output_df = output_df.divide(length, axis=0)
+    return output_df
+
+
+def find_cross_product(df, x_A, y_A, z_A, x_B, y_B, z_B, normalize=True):
+    """
+    Cross product of two vectors
+    """
+    cross_df = pd.DataFrame([], index=df.index)
+    cross_df['x'] = df[y_A] * df[z_B] - df[y_B] * df[z_A]
+    cross_df['y'] = df[z_A] * df[x_B] - df[z_B] * df[x_A]
+    cross_df['z'] = df[x_A] * df[y_B] - df[x_B] * df[y_A]
+    if normalize:
+        d = np.sqrt(np.square(cross_df).sum(axis=1))
+        cross_df = cross_df.divide(d, axis=0)
+
+    return cross_df
+
+
 def find_cos(df, x_A, y_A, z_A, x_B, y_B, z_B, x_C, y_C, z_C):
     """
     Finds cosine of angle ABC

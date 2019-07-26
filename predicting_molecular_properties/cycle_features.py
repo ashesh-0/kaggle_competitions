@@ -22,17 +22,16 @@ def get_ia_dict(ia_df):
 @timer('CycleFeatures')
 def add_cycle_features(cycles_df, ia_df, X_df):
     """
-    #atom_index_0 in cycle.
-    #atom_index_1 in cycle.
     # atom_index_0_neighbor in cycle
     # atom_index_1_neighbor in cycle.
     # cycle_length
     """
+
     cycle_features_dict = get_cycle_features_dict(cycles_df)
     id_to_molecule_name = X_df['molecule_name'].to_dict()
 
     ia_values = ia_df.reset_index().values
-    features = np.zeros((len(ia_values), 5))
+    features = np.zeros((len(ia_values), 3))
     # very big cycle ~ no cycle.
     features[:, 4] = 100
 
@@ -48,8 +47,8 @@ def add_cycle_features(cycles_df, ia_df, X_df):
 
         cycle_len = cycle_features_dict['cycle_length'][mn]
         feature = [
-            row[ai_0_idx] in cycle,
-            row[ai_1_idx] in cycle,
+            # row[ai_0_idx] in cycle,
+            # row[ai_1_idx] in cycle,
             row[ai_0_idx + 1] in cycle,
             row[ai_1_idx - 1] in cycle,
             cycle_len,
@@ -59,11 +58,10 @@ def add_cycle_features(cycles_df, ia_df, X_df):
     output_df = pd.DataFrame(
         features,
         index=ia_df.index,
-        columns=['in_cycle_atom_0', 'in_cycle_atom_1', 'in_cycle_atom_0_nbr', 'in_cycle_atom_1_nbr', 'cycle_len'],
+        columns=['in_cycle_atom_0_nbr', 'in_cycle_atom_1_nbr', 'cycle_len'],
         dtype=np.float16)
-    output_df[['in_cycle_atom_0', 'in_cycle_atom_1', 'in_cycle_atom_0_nbr', 'in_cycle_atom_1_nbr']] = output_df[[
-        'in_cycle_atom_0', 'in_cycle_atom_1', 'in_cycle_atom_0_nbr', 'in_cycle_atom_1_nbr'
-    ]].astype(bool)
+    output_df[['in_cycle_atom_0_nbr',
+               'in_cycle_atom_1_nbr']] = output_df[['in_cycle_atom_0_nbr', 'in_cycle_atom_1_nbr']].astype(bool)
 
     for col in output_df:
         X_df[col] = output_df[col]

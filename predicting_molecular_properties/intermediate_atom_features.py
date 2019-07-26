@@ -3,12 +3,15 @@ import numpy as np
 from sklearn.preprocessing import LabelEncoder
 # from bond_features import get_lone_pair
 
-from common_utils_molecule_properties import get_structure_data, dot, find_distance_btw_point
+from common_utils_molecule_properties import (get_structure_data, dot, find_distance_btw_point, find_cross_product,
+                                              find_projection_on_plane)
 
 
 def add_intermediate_atom_features(edges_df, X_df, structures_df, ia_df):
     f1 = count_feature(ia_df)
     f2 = add_CC_hybridization_feature(ia_df, edges_df, X_df, structures_df)
+    f3 = get_intermediate_angle_features(edges_df, X_df, structures_df, ia_df)
+
     hyb_cols = ['CC_sp2_hyb', 'CC_sp3_hyb', 'CC_sp_hyb', 'CC_sp3-sp_hyb', 'CC_sp3-sp2_hyb', 'CC_sp2-sp_hyb']
     oth_cols = list(set(f2.columns) - set(hyb_cols))
     hyb_df = f2[hyb_cols]
@@ -21,7 +24,73 @@ def add_intermediate_atom_features(edges_df, X_df, structures_df, ia_df):
     f2['CC_hybridization'] = hyb_df['CC_hybridization']
     f2['CC_hybridization'] = f2['CC_hybridization'].fillna(-1)
 
-    return pd.concat([f1, f2[['CC_hybridization'] + oth_cols]], axis=1)
+    return pd.concat([f1, f2[['CC_hybridization'] + oth_cols], f3], axis=1)
+
+
+def _add_edges(edges_df, ia_df, ai_0, ai_1, ai_2):
+    """
+    Find two edges ai_0-ai_1 and ai_1-ai_2
+    """
+    ia_df.reset_index(inplace=True)
+    ia_df = pd.merge(
+        ia_df,
+        edges_df[['m_id', 'atom_index_0', 'atom_index_1', 'x', 'y', 'z']],
+        how='left',
+        left_on=['m_id', ai_0, ai_1],
+        right_on=['m_id', 'atom_index_0', 'atom_index_1'])
+
+    ia_df.rename({'x': 'x_0', 'y': 'y_0', 'z': 'z_0'}, axis=1, inplace=True)
+    ia_df.drop(['atom_index_0', 'atom_index_1'], axis=1, inplace=True)
+
+    ia_df = pd.merge(
+        ia_df,
+        edges_df[['m_id', 'atom_index_0', 'atom_index_1', 'x', 'y', 'z']],
+        how='left',
+        left_on=['m_id', ai_1, ai_2],
+        right_on=['m_id', 'atom_index_0', 'atom_index_1'])
+
+    ia_df.rename({'x': 'x_1', 'y': 'y_1', 'z': 'z_1'}, axis=1, inplace=True)
+    ia_df.drop(['atom_index_0', 'atom_index_1'], axis=1, inplace=True)
+    ia_df.set_index('id', inplace=True)
+    return ia_df
+
+
+def get_intermediate_angle_features(edges_df, X_df, structures_df, ia_df):
+    cnt_df = (ia_df != -1).sum(axis=1)
+    enc = LabelEncoder()
+    structures_df['m_id'] = enc.fit_transform(structures_df['molecule_name'])
+    X_df['m_id'] = enc.transform(X_df['molecule_name'])
+    edges_df['m_id'] = enc.transform(edges_df['molecule_name'])
+    ia_df['m_id'] = X_df['m_id']
+
+    # 4 atom based examples. 2 angles.
+    ia_df_3 = ia_df[cnt_df >= 3].copy()
+    ia_df_3 = _add_edges(edges_df, ia_df_3, 0, 1, 2)
+    ia_df_3['angle_1'] = dot(ia_df_3, ia_df_3, ['x_0', 'y_0', 'z_0'], ['x_1', 'y_1', 'z_1'])
+
+    # normal to the plane containing atoms 0,1 and 2
+    plane_con_01_edges = find_cross_product(ia_df_3, 'x_0', 'y_0', 'z_0', 'x_1', 'y_1', 'z_1')
+    planeA_perp_1_edge = ia_df_3[['x_1', 'y_1', 'z_1']].copy()
+    edge0_on_planeA = find_projection_on_plane(ia_df_3, planeA_perp_1_edge, 'x_0', 'y_0', 'z_0', 'x_1', 'y_1', 'z_1')
+
+    ia_df_3.drop(['x_0', 'y_0', 'z_0', 'x_1', 'y_1', 'z_1'], axis=1, inplace=True)
+    # 2nd angle.
+    ia_df_3 = _add_edges(edges_df, ia_df_3, 1, 2, 3)
+    ia_df_3['angle_2'] = dot(ia_df_3, ia_df_3, ['x_0', 'y_0', 'z_0'], ['x_1', 'y_1', 'z_1'])
+    # angle made by 3rd edge from the plane of first two edges. It either side should not matter. so an abs().
+    ia_df_3['sin_out_of_plane'] = dot(plane_con_01_edges, ia_df_3, ['x', 'y', 'z'], ['x_1', 'y_1', 'z_1']).abs()
+
+    edge2_on_planeA = find_projection_on_plane(ia_df_3, planeA_perp_1_edge, 'x_1', 'y_1', 'z_1', 'x_1', 'y_1', 'z_1')
+    ia_df_3['dihedral_angle'] = dot(edge0_on_planeA, edge2_on_planeA, ['x', 'y', 'z'], ['x', 'y', 'z'])
+
+    feat_df = ia_df_3[['angle_1', 'angle_2', 'sin_out_of_plane', 'dihedral_angle']]
+    feat_df = feat_df.join(X_df[[]], how='right').fillna(-10)
+
+    structures_df.drop('m_id', axis=1, inplace=True)
+    X_df.drop('m_id', axis=1, inplace=True)
+    edges_df.drop('m_id', axis=1, inplace=True)
+    ia_df.drop('m_id', axis=1, inplace=True)
+    return feat_df.astype(np.float16)
 
 
 def count_feature(ia_df):
