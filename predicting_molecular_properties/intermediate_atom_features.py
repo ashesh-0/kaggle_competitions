@@ -79,12 +79,17 @@ def get_intermediate_angle_features(edges_df, X_df, structures_df, ia_df):
     ia_df_3['angle_2'] = dot(ia_df_3, ia_df_3, ['x_0', 'y_0', 'z_0'], ['x_1', 'y_1', 'z_1'])
     # angle made by 3rd edge from the plane of first two edges. It either side should not matter. so an abs().
     ia_df_3['sin_out_of_plane'] = dot(plane_con_01_edges, ia_df_3, ['x', 'y', 'z'], ['x_1', 'y_1', 'z_1']).abs()
+    ia_df_3['sin_out_of_plane_2@'] = 2 * ia_df_3['sin_out_of_plane'].pow(2) - 1
 
     edge2_on_planeA = find_projection_on_plane(ia_df_3, planeA_perp_1_edge, 'x_1', 'y_1', 'z_1', 'x_1', 'y_1', 'z_1')
     ia_df_3['dihedral_angle'] = dot(edge0_on_planeA, edge2_on_planeA, ['x', 'y', 'z'], ['x', 'y', 'z'])
+    ia_df_3['dihedral_angle_2@'] = 2 * ia_df_3['dihedral_angle'].pow(2) - 1
 
-    feat_df = ia_df_3[['angle_1', 'angle_2', 'sin_out_of_plane', 'dihedral_angle']]
+    feat_df = ia_df_3[[
+        'angle_1', 'angle_2', 'sin_out_of_plane', 'dihedral_angle', 'dihedral_angle_2@', 'sin_out_of_plane_2@'
+    ]]
     feat_df = feat_df.join(X_df[[]], how='right').fillna(-10)
+    feat_df.loc[cnt_df == 3, 'dihedral_angle'] = feat_df.loc[cnt_df == 3, 'angle_1']
 
     structures_df.drop('m_id', axis=1, inplace=True)
     X_df.drop('m_id', axis=1, inplace=True)
