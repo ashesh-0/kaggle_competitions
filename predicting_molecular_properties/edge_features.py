@@ -6,6 +6,8 @@ from tqdm import tqdm_notebook
 from common_utils_molecule_properties import dot, get_structure_data
 from common_data_molecule_properties import get_electonegativity, get_lone_pair
 
+# from pi_donor import get_pi_donor_feature
+
 # from decorators import timer
 
 
@@ -175,6 +177,9 @@ def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, neighbors_d
     new_cols = feat_df.columns.tolist()
     new_cols.remove('molecule_name')
     new_cols.remove('atom_index')
+    X_df[['ai0_pi_donor_0', 'ai0_pi_donor_1',
+          'ai0_pi_donor_2']] = X_df[['ai0_pi_donor_0', 'ai0_pi_donor_1', 'ai0_pi_donor_2']].fillna(0)
+
     X_df[new_cols] = X_df[new_cols].fillna(-10)
 
     cols = []
@@ -192,6 +197,9 @@ def add_kneighbor_aggregation_features(edge_df, X_df, structures_df, neighbors_d
     new_cols = feat_df.columns.tolist()
     new_cols.remove('molecule_name')
     new_cols.remove('atom_index')
+    X_df[['ai1_pi_donor_0', 'ai1_pi_donor_1',
+          'ai1_pi_donor_2']] = X_df[['ai1_pi_donor_0', 'ai1_pi_donor_1', 'ai1_pi_donor_2']].fillna(0)
+
     X_df[new_cols] = X_df[new_cols].fillna(-10)
 
     X_df.drop('atom_index', axis=1, inplace=True)
@@ -204,6 +212,18 @@ def _get_kneighbor_aggregation_features(edge_df, X_df, structures_df, neighbors_
     neighbors_df.drop('id', inplace=True, axis=1)
     neighbors_df.index.name = 'id'
     neighbors_df.rename({'atom_index': 'atom_index_0', 'nbr_atom_index': 'atom_index_1'}, axis=1, inplace=True)
+
+    pi_donor_feat_df = get_pi_donor_feature(structures_df,
+                                            edge_df.rename(
+                                                {
+                                                    'atom_index_one': 'atom_index_1',
+                                                    'atom_index_zero': 'atom_index_0',
+                                                },
+                                                axis=1), neighbors_df)
+    donor_features = pi_donor_feat_df.columns.tolist()
+    donor_features.remove('atom_index_0')
+    donor_features.remove('molecule_name')
+
     temp_X_df = get_structure_data(neighbors_df, structures_df)
 
     # Skipping Hydrogen neighbors.
@@ -213,12 +233,16 @@ def _get_kneighbor_aggregation_features(edge_df, X_df, structures_df, neighbors_
     feat_df['molecule_name'] = temp_X_df['molecule_name']
     feat_df['nbr_distance'] = temp_X_df['nbr_distance'].astype(np.uint8)
     feat_df['atom_index_0'] = temp_X_df['atom_index_0'].astype(np.uint8)
+
     feat_df = feat_df.groupby(['molecule_name', 'atom_index_0', 'nbr_distance']).mean().astype(np.float32)
     feat_df = feat_df.unstack().fillna(-10)
     feat_df.columns = [f'{nbr}NBR_{col}' for (col, nbr) in feat_df.columns]
     feat_df = feat_df.astype(np.float16)
     feat_df.reset_index(inplace=True)
+
+    feat_df = pd.merge(feat_df, pi_donor_feat_df, how='outer', on=['molecule_name', 'atom_index_0'])
     feat_df.rename({'atom_index_0': 'atom_index'}, inplace=True, axis=1)
+    feat_df[donor_features] = feat_df[donor_features].fillna(0)
     return feat_df
 
 
@@ -324,16 +348,10 @@ def add_bond_atom_aggregation_features(
 
 def _fill_nan_aggregation_features(feat_df):
     nan_with_0 = [
-        'EF_atom_index_0_induced_elecneg_along',
-        'EF_atom_index_0_induced_elecneg_perp',
-        'EF_atom_index_1_induced_elecneg_along',
-        'EF_atom_index_1_induced_elecneg_perp',
-        'EF_atom_index_1_nbr_distance_std',
-        'EF_atom_index_1_nbr_bond_angle_std',
-        'EF_atom_index_0_nbr_lone_pair_sum',
-        'EF_atom_index_1_nbr_lone_pair_sum',
-        'EF_atom_index_1_electroneg_sum',
-        'EF_atom_index_0_electroneg_sum'
+        'EF_atom_index_0_induced_elecneg_along', 'EF_atom_index_0_induced_elecneg_perp',
+        'EF_atom_index_1_induced_elecneg_along', 'EF_atom_index_1_induced_elecneg_perp',
+        'EF_atom_index_1_nbr_distance_std', 'EF_atom_index_1_nbr_bond_angle_std', 'EF_atom_index_0_nbr_lone_pair_sum',
+        'EF_atom_index_1_nbr_lone_pair_sum', 'EF_atom_index_1_electroneg_sum', 'EF_atom_index_0_electroneg_sum'
     ]
     feat_df[nan_with_0] = feat_df[nan_with_0].fillna(0)
 
