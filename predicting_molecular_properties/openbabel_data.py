@@ -21,14 +21,18 @@ def get_obabel_atom_df(fname, structures_df):
 
 
 @timer('ObabelBasedFeatures')
-def add_obabel_based_features(X_df, obabel_atom_df):
+def add_obabel_based_features(X_df, obabel_atom_df, atom_index='atom_index_1'):
+    """
+    In train data, atom_index_0 is Hydrogen which does not have any useful information. Hence, atom_index is set to be
+    atom_index_1
+    """
     assert 'molecule_name' in X_df.columns
     X_df.reset_index(inplace=True)
     X_df = pd.merge(
         X_df,
         obabel_atom_df,
         how='left',
-        left_on=['molecule_name', 'atom_index_1'],
+        left_on=['molecule_name', atom_index],
         right_on=['molecule_name', 'atom_index'])
     X_df.set_index('id', inplace=True)
     X_df.drop(['atom_index'], axis=1, inplace=True)

@@ -1,16 +1,18 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
+from openbabel_data import add_obabel_based_features
 # from bond_features import get_lone_pair
 
 from common_utils_molecule_properties import (get_structure_data, dot, find_distance_btw_point, find_cross_product,
                                               find_projection_on_plane)
 
 
-def add_intermediate_atom_features(edges_df, X_df, structures_df, ia_df):
+def add_intermediate_atom_features(edges_df, X_df, structures_df, ia_df, obabel_atom_df):
     f1 = count_feature(ia_df)
     f2 = add_CC_hybridization_feature(ia_df, edges_df, X_df, structures_df)
     f3 = get_intermediate_angle_features(edges_df, X_df, structures_df, ia_df)
+    f4 = get_intermediate_obabel_features(X_df, ia_df, obabel_atom_df)
 
     hyb_cols = ['CC_sp2_hyb', 'CC_sp3_hyb', 'CC_sp_hyb', 'CC_sp3-sp_hyb', 'CC_sp3-sp2_hyb', 'CC_sp2-sp_hyb']
     oth_cols = list(set(f2.columns) - set(hyb_cols))
@@ -24,7 +26,7 @@ def add_intermediate_atom_features(edges_df, X_df, structures_df, ia_df):
     f2['CC_hybridization'] = hyb_df['CC_hybridization']
     f2['CC_hybridization'] = f2['CC_hybridization'].fillna(-1)
 
-    return pd.concat([f1, f2[['CC_hybridization'] + oth_cols], f3], axis=1)
+    return pd.concat([f1, f2[['CC_hybridization'] + oth_cols], f3, f4], axis=1)
 
 
 def _add_edges(edges_df, ia_df, ai_0, ai_1, ai_2):
@@ -53,6 +55,34 @@ def _add_edges(edges_df, ia_df, ai_0, ai_1, ai_2):
     ia_df.drop(['atom_index_0', 'atom_index_1'], axis=1, inplace=True)
     ia_df.set_index('id', inplace=True)
     return ia_df
+
+
+def _get_immediate_neighbors(X_df, ia_df):
+    """
+        Immidiate neighbor of atom_index_0 will be in atom_index_0. Immidiate neighbor of atom_index_1 will be in
+        atom_index_1
+    """
+    cnt_df = (ia_df != -1).sum(axis=1)
+    filtr = [cnt_df > 2]
+    ia_df = ia_df[filtr].copy()
+    ia_df['cnt'] = cnt_df
+    # 1,-1
+    nbr_atom_index_0_df = cnt_df[filtr].to_frame('atom_index_0')
+    nbr_atom_index_1_df = ia_df.apply(lambda row: row[row['cnt'] - 2], axis=1).to_frame('atom_index_1')
+    df = pd.concat([nbr_atom_index_0_df, nbr_atom_index_1_df], axis=1)
+    df.loc[:, 'molecule_name'] = X_df.loc[df.index, 'molecule_name']
+    return df
+
+
+def get_intermediate_obabel_features(X_df, ia_df, obabel_atom_df):
+    new_cols = list(set(obabel_atom_df.columns.tolist()) - set(['molecule_name', 'atom_index']))
+    df = _get_immediate_neighbors(X_df, ia_df)
+
+    df = add_obabel_based_features(df, obabel_atom_df, atom_index='atom_index_0')
+    df.rename({k: f'nbr_0_{k}' for k in new_cols}, inplace=True, axis=1)
+    df = add_obabel_based_features(df, obabel_atom_df, atom_index='atom_index_1')
+    df.rename({k: f'nbr_1_{k}' for k in new_cols}, inplace=True, axis=1)
+    return df
 
 
 def get_intermediate_angle_features(edges_df, X_df, structures_df, ia_df):
