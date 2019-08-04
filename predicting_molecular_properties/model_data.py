@@ -27,7 +27,7 @@ def get_X(X_df, structures_df, atom_encoder, edge_df, ia_df, neighbors_df, cycle
     # ascribe atom_type for both neighbors.
     X_df = add_atom_type_both_indices(X_df, atom_type_df)
 
-    X_df = add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df)
+    X_df = add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df, obabel_atom_df)
 
     # it must be called after distance features
     X_df = add_bond_features(X_df)

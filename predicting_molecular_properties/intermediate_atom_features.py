@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
-from openbabel_data import add_obabel_based_features
+# from openbabel_data import add_obabel_based_features
 # from bond_features import get_lone_pair
 
 from common_utils_molecule_properties import (get_structure_data, dot, find_distance_btw_point, find_cross_product,
@@ -63,11 +63,11 @@ def _get_immediate_neighbors(X_df, ia_df):
         atom_index_1
     """
     cnt_df = (ia_df != -1).sum(axis=1)
-    filtr = [cnt_df > 2]
+    filtr = cnt_df > 2
     ia_df = ia_df[filtr].copy()
     ia_df['cnt'] = cnt_df
     # 1,-1
-    nbr_atom_index_0_df = cnt_df[filtr].to_frame('atom_index_0')
+    nbr_atom_index_0_df = ia_df[1].to_frame('atom_index_0')
     nbr_atom_index_1_df = ia_df.apply(lambda row: row[row['cnt'] - 2], axis=1).to_frame('atom_index_1')
     df = pd.concat([nbr_atom_index_0_df, nbr_atom_index_1_df], axis=1)
     df.loc[:, 'molecule_name'] = X_df.loc[df.index, 'molecule_name']
@@ -82,6 +82,14 @@ def get_intermediate_obabel_features(X_df, ia_df, obabel_atom_df):
     df.rename({k: f'nbr_0_{k}' for k in new_cols}, inplace=True, axis=1)
     df = add_obabel_based_features(df, obabel_atom_df, atom_index='atom_index_1')
     df.rename({k: f'nbr_1_{k}' for k in new_cols}, inplace=True, axis=1)
+    df.drop(['molecule_name', 'atom_index_0', 'atom_index_1'], inplace=True, axis=1)
+
+    uint8_features = df.dtypes[df.dtypes == np.uint8].index.tolist()
+    bool_features = df.dtypes[df.dtypes == bool].index.tolist()
+
+    df = df.join(X_df[[]], how='right').fillna(-10)
+    df[bool_features] = df[bool_features].astype(np.int8)
+    df[uint8_features] = df[uint8_features].astype(np.int16)
     return df
 
 

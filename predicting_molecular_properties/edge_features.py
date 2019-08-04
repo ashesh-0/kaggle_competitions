@@ -5,7 +5,7 @@ from tqdm import tqdm_notebook
 
 from common_utils_molecule_properties import dot, get_structure_data
 from common_data_molecule_properties import get_electonegativity, get_lone_pair
-
+# from intermediate_atom_features import add_intermediate_atom_features
 # from pi_donor import get_pi_donor_feature
 
 # from decorators import timer
@@ -90,7 +90,7 @@ def add_features_to_edges(edge_df, structures_df):
     return output_df
 
 
-def add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df):
+def add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df,obabel_atom_df):
     """
     1. electonegativity feature for the bond.
     2. number of neighbors for both atoms of the bond.
@@ -101,7 +101,7 @@ def add_edge_features(edge_df, X_df, structures_df, ia_df, neighbors_df):
     edge_df = get_symmetric_edges(edge_df)
     X_df = add_neighbor_count_features(edge_df, X_df, structures_df)
     add_bond_atom_aggregation_features(edge_df, X_df, structures_df, ia_df,
-                                       neighbors_df)
+                                       neighbors_df,obabel_atom_df)
     # remove useless features.
 
     return X_df
@@ -364,6 +364,7 @@ def add_bond_atom_aggregation_features(
         structures_df,
         ia_df,
         neighbors_df,
+        obabel_atom_df,
         step=2000,
 ):
     """
@@ -458,6 +459,8 @@ def add_bond_atom_aggregation_features(
     structures_df['m_id'] = label.fit_transform(structures_df['molecule_name'])
     X_df['m_id'] = label.transform(X_df['molecule_name'])
     edge_df['m_id'] = label.transform(edge_df['molecule_name'])
+    obabel_atom_df['m_id'] = label.transform(obabel_atom_df['molecule_name'])
+
     edge_df = add_features_to_edges(edge_df, structures_df)
     output = []
     for start_m_id in tqdm_notebook(range(0, X_df['m_id'].max(), step)):
@@ -466,12 +469,16 @@ def add_bond_atom_aggregation_features(
         X_t_df = X_df[(X_df['m_id'] >= start_m_id)
                       & (X_df['m_id'] < start_m_id + step)]
         ia_t_df = ia_df.loc[X_t_df.index]
+        obabel_t_atom_df = obabel_atom_df[(obabel_atom_df['m_id'] >= start_m_id)
+                                & (obabel_atom_df['m_id'] < start_m_id + step)]
+
+
         edge_t_df = edge_df[(edge_df['m_id'] >= start_m_id)
                             & (edge_df['m_id'] < start_m_id + step)]
         neighbors_t_df = neighbors_df[neighbors_df['id'].isin(X_t_df.index)]
 
         feat_ia_df = add_intermediate_atom_features(edge_t_df, X_t_df, st_t_df,
-                                                    ia_t_df)
+                                                    ia_t_df,obabel_t_atom_df)
         feat_df = _add_bond_atom_aggregation_features(edge_t_df, X_t_df,
                                                       st_t_df)
         feat_ia2_df = add_kneighbor_along_path_aggregation_features(
