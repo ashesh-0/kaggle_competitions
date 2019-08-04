@@ -84,4 +84,20 @@ def add_neighbors_features(df, structures_df, atom_encoder, neighbor_cnt=3):
         df.drop('atom', axis=1, inplace=True)
 
     df.set_index('id', inplace=True)
+    useless_cols = [
+        'angle_-1neighbor_atom_index_0', 'angle_-1neighbor_atom_index_1', 'angle_-2neighbor_atom_index_0',
+        'angle_-2neighbor_atom_index_1', 'angle_-3neighbor_atom_index_0', 'angle_-3neighbor_atom_index_1',
+        'angle_1neighbor_atom_index_0', 'angle_1neighbor_atom_index_1', 'angle_2neighbor_atom_index_0',
+        'angle_2neighbor_atom_index_1', 'angle_3neighbor_atom_index_0', 'angle_3neighbor_atom_index_1',
+        'atom_-1neighbor_atom_index_0', 'atom_-1neighbor_atom_index_1', 'atom_-2neighbor_atom_index_0',
+        'atom_-2neighbor_atom_index_1', 'atom_-3neighbor_atom_index_0', 'atom_-3neighbor_atom_index_1',
+        'atom_1neighbor_atom_index_0', 'atom_1neighbor_atom_index_1', 'atom_2neighbor_atom_index_0',
+        'atom_2neighbor_atom_index_1', 'atom_3neighbor_atom_index_0', 'atom_3neighbor_atom_index_1',
+        'dis_-1neighbor_atom_index_0', 'dis_-1neighbor_atom_index_1', 'dis_-2neighbor_atom_index_0',
+        'dis_-2neighbor_atom_index_1', 'dis_-3neighbor_atom_index_0', 'dis_-3neighbor_atom_index_1',
+        'dis_1neighbor_atom_index_0', 'dis_1neighbor_atom_index_1', 'dis_2neighbor_atom_index_0',
+        'dis_2neighbor_atom_index_1', 'dis_3neighbor_atom_index_0', 'dis_3neighbor_atom_index_1'
+    ]
+    df.drop(useless_cols, axis=1, inplace=True)
+
     return df

@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from decorators import timer
+# from decorators import timer
 
 
 @timer('DistanceFeatures')
@@ -84,4 +84,28 @@ def add_distance_features(df, structures_df):
     df = _add_bond_distance_feature(df)
     df = _add_distance_from_center(df, structures_df)
     _set_distance_from_molecule_centers_feature(df)
+    useless_cols = [
+        'dis_0_mean', 'dis_1_mean', 'dis_MolShape_x_len_.1', 'dis_MolShape_x_len_.5', 'dis_MolShape_x_len_1',
+        'dis_MolShape_y_len_.1', 'dis_MolShape_y_len_.5', 'dis_MolShape_y_len_1', 'dis_MolShape_z_len_.1',
+        'dis_MolShape_z_len_.5', 'dis_MolShape_z_len_1', 'dis_bond', 'dis_x', 'dis_x_0_mean', 'dis_x_1_mean', 'dis_y',
+        'dis_y_0_mean', 'dis_y_1_mean', 'dis_z', 'dis_z_0_mean', 'dis_z_1_mean'
+    ]
+    useless_cols += [
+        'MolShape_x_len_.1',
+        'MolShape_x_len_.5',
+        'MolShape_x_len_0',
+        'MolShape_x_len_1',
+        'MolShape_x_ratio',
+        'MolShape_y_len_.1',
+        'MolShape_y_len_.5',
+        'MolShape_y_len_0',
+        'MolShape_y_len_1',
+        'MolShape_y_ratio',
+        'MolShape_z_len_.1',
+        'MolShape_z_len_.5',
+        'MolShape_z_len_0',
+        'MolShape_z_len_1',
+        'MolShape_z_ratio',
+    ]
+    df.drop(useless_cols, axis=1, inplace=True)
     return df

@@ -48,3 +48,46 @@ after we split train from validation.
 2. Currently, I'm just looking at 1 neighbors. I should be looking at 3 neighbor Hydrogen.
 
 
+### Openbabel usage:
+
+Link: http://openbabel.org/dev-api/classOpenBabel_1_1OBBond.shtml
+
+```
+import openbabel
+import pybel
+mol = list(pybel.readfile('mol2','dsgdb9nsd_000001.mol2'))[0]
+for bond in openbabel.OBMolBondIter( mol.OBMol):
+    print(bond.GetIdx(),bond.GetBO(),bond.GetBeginAtom().GetIdx(),bond.GetEndAtom().GetIdx())
+
+#GetBO () const
+#GetBeginAtomIdx () const
+#GetEndAtomIdx () const
+#GetEquibLength () const
+#GetLength () const
+#GetNbrAtomIdx (OBAtom *ptr)
+# OBRing * 	FindSmallestRing () const
+
+#bool 	IsAromatic () const
+#bool 	IsInRing () const
+#bool 	IsRotor ()
+#bool 	IsAmide ()
+#bool 	IsPrimaryAmide ()
+#bool 	IsSecondaryAmide ()
+#bool 	IsTertiaryAmide ()
+#bool 	IsEster ()
+#bool 	IsCarbonyl ()
+#bool 	IsSingle ()
+#bool 	IsDouble ()
+#bool 	IsTriple ()
+#bool 	IsClosure ()
+#bool 	IsUp ()
+#bool 	IsDown ()
+#bool 	IsWedge ()
+#bool 	IsHash ()
+#bool 	IsWedgeOrHash () const
+#bool 	IsCisOrTrans () const
+#bool 	IsDoubleBondGeometry ()
+```
+
+Command to add multiple xyz files into one molecule file. `obabel -ixyz -omol2 structures/dsgdb9nsd_00000*.xyz  -O abcd.mol2 --separate`
+

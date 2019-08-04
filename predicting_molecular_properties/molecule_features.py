@@ -4,7 +4,7 @@ Features which are same for all atoms of a molecule.
 import pandas as pd
 from scipy.spatial import ConvexHull
 import numpy as np
-from decorators import timer
+# from decorators import timer
 
 
 @timer('MoleculeFeatures')
@@ -65,6 +65,7 @@ def molecule_shape_features(structures_df):
             }, axis=1)
     output_df = pd.concat([feat1, feat2, feat3, feat4, feat5], axis=1).astype(np.float32)
     output_df.columns = ['MolShape_' + c for c in output_df.columns]
+
     return output_df
 
 

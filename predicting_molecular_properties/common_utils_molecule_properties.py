@@ -1,27 +1,52 @@
 import numpy as np
 import pandas as pd
 
+from sklearn.preprocessing import LabelEncoder
 
-def add_structure_data_to_edge(edges_df, structures_df):
+
+def get_edges_df_from_obabel(obabel_edges_df, structures_df):
+    """
+    Given obabel edge data, convert it to format of edges_df so that all other code remains the same.
+    """
+    obabel_edges_df = obabel_edges_df[[
+        'mol_id', 'atom_index_0', 'atom_index_1', 'BondLength', 'BondOrder', 'IsAromatic'
+    ]]
+    obabel_edges_df.loc[obabel_edges_df.IsAromatic, 'BondOrder'] = 1.5
+    obabel_edges_df.rename({'BondLength': 'distance', 'BondOrder': 'bond_type'}, axis=1, inplace=True)
+    enc = LabelEncoder()
+    enc.fit(structures_df.molecule_name)
+    obabel_edges_df['molecule_name'] = enc.inverse_transform(obabel_edges_df['mol_id'])
+    obabel_edges_df.drop(['IsAromatic', 'mol_id'], axis=1, inplace=True)
+
+    obabel_edges_df = add_structure_data_to_edge(obabel_edges_df, structures_df, ['x', 'y', 'z'])
+    obabel_edges_df['x'] = (obabel_edges_df['x_1'] - obabel_edges_df['x_0']) / obabel_edges_df['distance']
+    obabel_edges_df['y'] = (obabel_edges_df['y_1'] - obabel_edges_df['y_0']) / obabel_edges_df['distance']
+    obabel_edges_df['z'] = (obabel_edges_df['z_1'] - obabel_edges_df['z_0']) / obabel_edges_df['distance']
+    obabel_edges_df.drop(['x_1', 'x_0', 'y_1', 'y_0', 'z_0', 'z_1'], axis=1, inplace=True)
+    return obabel_edges_df
+
+
+def add_structure_data_to_edge(edges_df, structures_df, cols_to_add=['atom']):
     edges_df = pd.merge(
         edges_df,
-        structures_df[['molecule_name', 'atom_index', 'atom']],
+        structures_df[['molecule_name', 'atom_index'] + cols_to_add],
         how='left',
         left_on=['molecule_name', 'atom_index_0'],
         right_on=['molecule_name', 'atom_index'],
     )
     edges_df.drop('atom_index', axis=1, inplace=True)
-    edges_df.rename({'atom': 'atom_0'}, inplace=True, axis=1)
+
+    edges_df.rename({k: f'{k}_0' for k in cols_to_add}, inplace=True, axis=1)
 
     edges_df = pd.merge(
         edges_df,
-        structures_df[['molecule_name', 'atom_index', 'atom']],
+        structures_df[['molecule_name', 'atom_index'] + cols_to_add],
         how='left',
         left_on=['molecule_name', 'atom_index_1'],
         right_on=['molecule_name', 'atom_index'],
     )
     edges_df.drop('atom_index', axis=1, inplace=True)
-    edges_df.rename({'atom': 'atom_1'}, inplace=True, axis=1)
+    edges_df.rename({k: f'{k}_1' for k in cols_to_add}, inplace=True, axis=1)
     return edges_df
 
 

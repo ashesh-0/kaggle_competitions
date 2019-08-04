@@ -6,14 +6,16 @@
 # from edge_features import add_edge_features
 # from nbr_based_atom_types import get_atom_type, add_atom_type_both_indices
 # from cycle_features import add_cycle_features
+# from openbabel_data import add_obabel_based_features
 import pandas as pd
 
 
-def get_X(X_df, structures_df, atom_encoder, edge_df, ia_df, neighbors_df, cycles_df):
+def get_X(X_df, structures_df, atom_encoder, edge_df, ia_df, neighbors_df, cycles_df, obabel_atom_df):
     # Get atom type of each atom in molecule based on how many neighbors are C,H,O,N,F
     atom_type_df = get_atom_type(edge_df, structures_df)
 
     X_df = add_molecule_features(X_df, structures_df)
+    X_df = add_obabel_based_features(X_df, obabel_atom_df)
 
     # length of cycle and information about whether atom or its neighbor was in cycle.
     add_cycle_features(cycles_df, ia_df, X_df)

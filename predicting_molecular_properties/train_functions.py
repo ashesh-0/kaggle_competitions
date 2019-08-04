@@ -7,6 +7,7 @@ import numpy as np
 from catboost import CatBoostRegressor, Pool
 from sklearn.model_selection import train_test_split
 from catboost import CatBoostClassifier
+from tqdm import tqdm_notebook
 
 
 def eval_metric(actual, predic, molecule_type):
@@ -69,7 +70,7 @@ def train(catboost_config, train_X, train_Y, test_X, test_Y, data_size, plot=Fal
     return model
 
 
-def averserial_train_for_each_type_no_model(useless_cols_for_each_type, train_X_df, test_X_df):
+def averserial_train_for_each_type_no_model(useless_cols_for_each_type, train_X_df, test_X_df, max_auc):
     """
     It does not store (and return) model. It is very lean in terms of memory in that sense.
     We try to see how much AUC do we get when we try to differentiate train with test.
@@ -98,7 +99,7 @@ def averserial_train_for_each_type_no_model(useless_cols_for_each_type, train_X_
         anal_dict[type_enc]['test'] = round(auc_test, 2)
         f_df = model.get_feature_importance(prettified=True).set_index('Feature Index')['Importances']
         # anal_dict[type_enc]['feature_importance'] = f_df.to_dict()
-        while auc_test > 0.65:
+        while auc_test > max_auc:
             useless_cols = f_df[f_df > 10].index.tolist()
             if len(useless_cols) == 0:
                 break
@@ -115,6 +116,66 @@ def averserial_train_for_each_type_no_model(useless_cols_for_each_type, train_X_
             # anal_dict[type_enc]['feature_importance'] = f_df.to_dict()
 
     return anal_dict
+
+
+def one_type_eval_metric(actual, predic):
+    """
+    Metric for just one type
+    """
+    return eval_metric(actual, predic, np.zeros(actual.shape))
+
+
+def permutation_importance(model, X_val, y_val, metric, threshold=0.005, verbose=True):
+    """
+    Permutes the features. If performance doesn't change a lot then it is useless.
+    """
+    # Taken from here https://www.kaggle.com/speedwagon/permutation-importance
+    results = {}
+
+    y_pred = model.predict(X_val)
+
+    results['base_score'] = metric(y_val, y_pred)
+    if verbose:
+        print(f'Base score {results["base_score"]:.5}')
+
+    for col in tqdm_notebook(X_val.columns):
+        freezed_col = X_val[col].copy()
+
+        X_val[col] = np.random.permutation(X_val[col])
+        preds = model.predict(X_val)
+        results[col] = metric(y_val, preds)
+
+        X_val[col] = freezed_col
+
+        if verbose:
+            print(f'column: {col} - {results[col]:.5}')
+
+    bad_features = [k for k in results if results[k] > results['base_score'] + threshold]
+
+    return results, bad_features
+
+
+def permute_to_get_useless_features(catboost_config_for_each_type, useless_cols_for_each_type, train_X_df, Y_df):
+    bad_features_dict = {}
+    for type_enc in train_X_df['type_enc'].unique():
+        print(type_enc)
+        bad_features_dict[type_enc] = {}
+        X_t = train_X_df[train_X_df.type_enc == type_enc].copy()
+
+        if len(useless_cols_for_each_type[type_enc]) > 0:
+            X_t = X_t.drop(useless_cols_for_each_type[type_enc], axis=1)
+
+        train_X, test_X = train_test_split(X_t, test_size=0.15, random_state=0)
+        test_Y = Y_df.loc[test_X.index].copy()
+
+        train_Y = Y_df.loc[train_X.index].copy()
+        model = train(catboost_config_for_each_type[type_enc], train_X, train_Y, test_X, test_Y, train_X_df.shape[0])
+        perm_results, bad_features = permutation_importance(model, test_X, test_Y, one_type_eval_metric, verbose=False)
+        print([('base', one_type_eval_metric(test_Y, model.predict(test_X)))] + [(bf, perm_results[bf])
+                                                                                 for bf in bad_features])
+        bad_features_dict[type_enc] = bad_features
+
+    return bad_features
 
 
 def train_for_each_type_no_model(catboost_config_for_each_type,
