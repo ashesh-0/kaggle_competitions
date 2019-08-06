@@ -50,7 +50,41 @@ def aversarial_train(train_X, train_Y, test_X, test_Y, plot=False):
     return (model, auc_train, auc_test)
 
 
-def train(catboost_config, train_X, train_Y, test_X, test_Y, data_size, plot=False):
+def train_lightGBM(lightGBM_config, train_X, train_Y, test_X, test_Y, data_size):
+    import lightgbm as lgb
+
+    lgb_train = lgb.Dataset(train_X, train_Y)
+    valid_sets = [lgb_train]
+
+    # When creating final model, test_X is not None but test_Y is None.
+    if test_Y is None:
+        lgb_eval = None
+        test_Y = []
+    else:
+        lgb_eval = lgb.Dataset(test_X, test_Y, reference=lgb_train)
+        valid_sets.append(lgb_eval)
+
+    print('{:.2f}% Train:{}K Test:{}K #Features:{}'.format(
+        100 * (len(train_Y) + len(test_Y)) / data_size,
+        len(train_Y) // 1000,
+        len(test_Y) // 1000,
+        train_X.shape[1],
+    ))
+    model = lgb.train(
+        lightGBM_config,
+        lgb_train,
+        valid_sets=valid_sets,
+        verbose_eval=5000,
+        early_stopping_rounds=40,
+    )
+
+    feature_importance_df = pd.DataFrame(
+        sorted(zip(model.feature_importance(), test_X.columns)), columns=['Importances',
+                                                                          'Feature Index']).set_index('Feature Index')
+    return (model, feature_importance_df, model.best_iteration)
+
+
+def train_catboost(catboost_config, train_X, train_Y, test_X, test_Y, data_size, plot=False):
 
     train_pool = Pool(train_X, label=train_Y)
     # When creating final model, test_X is not None but test_Y is None.
@@ -67,7 +101,8 @@ def train(catboost_config, train_X, train_Y, test_X, test_Y, data_size, plot=Fal
     ))
     model = CatBoostRegressor(**catboost_config)
     model.fit(train_pool, eval_set=test_pool, plot=plot, logging_level='Silent')
-    return model
+    feature_importance_df = model.get_feature_importance(prettified=True).set_index('Feature Index')
+    return (model, feature_importance_df, model.best_iteration_)
 
 
 def averserial_train_for_each_type_no_model(useless_cols_for_each_type, train_X_df, test_X_df, max_auc):
@@ -169,7 +204,8 @@ def permute_to_get_useless_features(catboost_config_for_each_type, useless_cols_
         test_Y = Y_df.loc[test_X.index].copy()
 
         train_Y = Y_df.loc[train_X.index].copy()
-        model = train(catboost_config_for_each_type[type_enc], train_X, train_Y, test_X, test_Y, train_X_df.shape[0])
+        model, _ = train_catboost(catboost_config_for_each_type[type_enc], train_X, train_Y, test_X, test_Y,
+                                  train_X_df.shape[0])
         perm_results, bad_features = permutation_importance(model, test_X, test_Y, one_type_eval_metric, verbose=False)
         print([('base', one_type_eval_metric(test_Y, model.predict(test_X)))] + [(bf, perm_results[bf])
                                                                                  for bf in bad_features])
@@ -178,14 +214,18 @@ def permute_to_get_useless_features(catboost_config_for_each_type, useless_cols_
     return bad_features
 
 
-def train_for_each_type_no_model(catboost_config_for_each_type,
+def train_for_each_type_no_model(model_config_for_each_type,
                                  useless_cols_for_each_type,
                                  train_X_df,
                                  Y_df,
+                                 train_fn=None,
                                  test_X_df=None):
     """
     It does not store (and return) model. It is very lean in terms of memory in that sense.
     """
+    if train_fn is None:
+        train_fn = train_catboost
+
     anal_dict = {}
     predictions = []
     for type_enc in train_X_df['type_enc'].unique():
@@ -205,14 +245,14 @@ def train_for_each_type_no_model(catboost_config_for_each_type,
             test_Y = Y_df.loc[test_X.index]
 
         train_Y = Y_df.loc[train_X.index]
-        model = train(catboost_config_for_each_type[type_enc], train_X, train_Y, test_X, test_Y, train_X_df.shape[0])
+        model, feature_importance_df, best_iteration = train_fn(model_config_for_each_type[type_enc], train_X, train_Y,
+                                                                test_X, test_Y, train_X_df.shape[0])
         # saving important things.
         anal_dict[type_enc]['train'] = pd.Series(model.predict(train_X), index=train_X.index)
-        anal_dict[type_enc]['best_iteration'] = model.best_iteration_
-        anal_dict[type_enc]['feature_importance'] = model.get_feature_importance(
-            prettified=True).set_index('Feature Index')['Importances'].to_dict()
+        anal_dict[type_enc]['best_iteration'] = best_iteration
+        anal_dict[type_enc]['feature_importance'] = feature_importance_df['Importances'].to_dict()
 
-        print('Best iter', model.best_iteration_, catboost_config_for_each_type[type_enc])
+        print('Best iter', best_iteration, model_config_for_each_type[type_enc])
 
         anal_dict[type_enc]['test'] = pd.Series(model.predict(test_X), index=test_X.index)
         predictions.append(anal_dict[type_enc]['test'])
@@ -226,6 +266,20 @@ def train_for_each_type_no_model(catboost_config_for_each_type,
                                           train_X_df.loc[actual.index, 'type_enc']))
 
     return anal_dict
+
+
+def train_for_each_contrib(catboost_config, train_X_df, Y_df):
+    train_X, test_X = train_test_split(train_X_df, test_size=0.15, random_state=0)
+    test_Y = Y_df.loc[test_X.index]
+
+    train_Y = Y_df.loc[train_X.index]
+    prediction = 0
+    for col in Y_df.colums:
+        model = train_catboost(catboost_config, train_X, train_Y[col], test_X, test_Y[col], train_X_df.shape[0])
+        prediction += model.predict(test_X)
+
+    actual = Y_df.sum(axis=1)
+    print(one_type_eval_metric(actual, prediction))
 
 
 def train_for_each_type(catboost_config_for_each_type, train_X_df, Y_df, no_validation=False):
@@ -246,8 +300,8 @@ def train_for_each_type(catboost_config_for_each_type, train_X_df, Y_df, no_vali
             test_Y = Y_df.loc[test_X.index]
 
         train_Y = Y_df.loc[train_X.index]
-        models[type_enc] = train(catboost_config_for_each_type[type_enc], train_X, train_Y, test_X, test_Y,
-                                 train_X_df.shape[0])
+        models[type_enc] = train_catboost(catboost_config_for_each_type[type_enc], train_X, train_Y, test_X, test_Y,
+                                          train_X_df.shape[0])
         anal_dict[type_enc]['train'] = pd.Series(models[type_enc].predict(train_X), index=train_X.index)
         print('Best iter', models[type_enc].best_iteration_, catboost_config_for_each_type[type_enc])
 
