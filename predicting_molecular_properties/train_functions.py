@@ -5,7 +5,8 @@ Couple of functions needed for training the model.
 import pandas as pd
 import numpy as np
 from catboost import CatBoostRegressor, Pool
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
+from sklearn.preprocessing import StandardScaler
 from catboost import CatBoostClassifier
 from tqdm import tqdm_notebook
 
@@ -81,7 +82,14 @@ def train_lightGBM(lightGBM_config, train_X, train_Y, test_X, test_Y, data_size)
     feature_importance_df = pd.DataFrame(
         sorted(zip(model.feature_importance(), test_X.columns)), columns=['Importances',
                                                                           'Feature Index']).set_index('Feature Index')
-    return (model, feature_importance_df, model.best_iteration)
+    output_dict = {
+        'model': model,
+        'feature_importance': feature_importance_df,
+        'best_iteration': model.best_iteration,
+        'train_prediction': model.predict(train_X),
+        'test_prediction': model.predict(test_X),
+    }
+    return output_dict
 
 
 def train_catboost(catboost_config, train_X, train_Y, test_X, test_Y, data_size, plot=False):
@@ -102,7 +110,15 @@ def train_catboost(catboost_config, train_X, train_Y, test_X, test_Y, data_size,
     model = CatBoostRegressor(**catboost_config)
     model.fit(train_pool, eval_set=test_pool, plot=plot, logging_level='Silent')
     feature_importance_df = model.get_feature_importance(prettified=True).set_index('Feature Index')
-    return (model, feature_importance_df, model.best_iteration_)
+
+    output_dict = {
+        'model': model,
+        'feature_importance': feature_importance_df,
+        'best_iteration': model.best_iteration_,
+        'train_prediction': model.predict(train_X),
+        'test_prediction': model.predict(test_X),
+    }
+    return output_dict
 
 
 def averserial_train_for_each_type_no_model(useless_cols_for_each_type, train_X_df, test_X_df, max_auc):
@@ -214,15 +230,255 @@ def permute_to_get_useless_features(catboost_config_for_each_type, useless_cols_
     return bad_features
 
 
-def train_for_each_type_no_model(model_config_for_each_type,
-                                 useless_cols_for_each_type,
-                                 train_X_df,
-                                 Y_df,
-                                 train_fn=None,
-                                 test_X_df=None):
+def add_one_hot_encoding(X_df, test_X_df, skip_one_hot_columns=None):
+    """
+    integer columns are converted to onehot columns.  This is helpful in gradient based models LR,NN.
+    Returns a dict mapping old column to new column names.
+    Ensure that df does not get any more columns than test_X_df.
+    """
+    # we might have removed some columns from training data as part of preprocessing.
+    assert set(X_df.columns).issubset(set(test_X_df.columns))
+
+    _ = _add_one_hot_encoding(X_df, skip_one_hot_columns=skip_one_hot_columns)
+    _ = _add_one_hot_encoding(test_X_df, skip_one_hot_columns=skip_one_hot_columns)
+    extra_cols = list(set(X_df.columns) - set(test_X_df.columns))
+    if extra_cols:
+        print('ONEHOT encoding extra columns getting removed:', extra_cols)
+        X_df.drop(extra_cols, axis=1, inplace=True)
+
+
+def _add_one_hot_encoding(df, skip_one_hot_columns=None, one_hot_columns=None):
+    """
+    integer columns are converted to onehot columns.  This is helpful in gradient based models LR,NN.
+    Returns a dict mapping old column to new column names.
+    """
+    new_columns_dict = {}
+
+    dtypes_df = df.dtypes
+    if one_hot_columns is None:
+        # are float but have int values
+        one_hot_columns = [
+            'SpinMultiplicity', 'nbr_0_SpinMultiplicity', 'nbr_1_SpinMultiplicity', 'CC_hybridization', 'nbr_0_Type',
+            'nbr_1_Type'
+        ]
+        one_hot_columns = list(set(dtypes_df.index.tolist()).intersection(set(one_hot_columns)))
+        one_hot_columns += dtypes_df[(dtypes_df == np.uint8) | (dtypes_df == np.uint16)
+                                     | (dtypes_df == np.int16)].index.tolist()
+    else:
+        one_hot_columns = one_hot_columns.copy()
+
+    if skip_one_hot_columns is not None:
+        for skip_col in skip_one_hot_columns:
+            if skip_col in one_hot_columns:
+                one_hot_columns.remove(skip_col)
+
+    columns_added_count = 0
+    columns_converted = []
+    for col in tqdm_notebook(one_hot_columns):
+        one_hot_df = pd.get_dummies(df[col], dtype=bool)
+        one_hot_df.columns = [f'ONEHOT_{col}_{one_hot_col}' for one_hot_col in one_hot_df.columns]
+        new_columns_dict[col] = one_hot_df.columns.tolist()
+
+        # We ensure that only certain number of columns gets added. Otherwise, it results in issues.
+        if columns_added_count + one_hot_df.shape[1] > 200:
+            break
+
+        columns_added_count += one_hot_df.shape[1]
+
+        for one_hot_col in one_hot_df.columns:
+            df[one_hot_col] = one_hot_df[one_hot_col]
+
+        columns_converted.append(col)
+        df.drop([col], axis=1, inplace=True)
+
+    print(f'{columns_added_count} many columns added from {len(columns_converted)} columns')
+    # df.drop(columns_converted, axis=1, inplace=True)
+    return new_columns_dict
+
+
+def train_for_one_type_no_model_normalized_onehot(model_config, X_df, Y_df, train_fn, test_X_df):
+    data = {}
+    # one hot encoding
+    test_X = test_X_df[X_df.columns]
+    add_one_hot_encoding(X_df, test_X)
+    test_X = test_X[X_df.columns]
+
+    train_X, val_X = train_test_split(X_df, test_size=0.15, random_state=0)
+
+    val_Y = Y_df.loc[val_X.index]
+    train_Y = Y_df.loc[train_X.index]
+
+    train_idx = train_X.index
+    val_idx = val_X.index
+    test_idx = test_X.index
+
+    scalar_X = StandardScaler()
+    train_X = scalar_X.fit_transform(train_X)
+    val_X = scalar_X.transform(val_X)
+    test_X = scalar_X.transform(test_X)
+
+    train_dict = train_fn(model_config, train_X, train_Y, val_X, val_Y, test_X)
+    # saving important things.
+    data['train'] = pd.Series(train_dict['train_prediction'], index=train_idx)
+    data['val'] = pd.Series(train_dict['val_prediction'], index=val_idx)
+    data['test'] = pd.Series(train_dict['test_prediction'], index=test_idx)
+
+    print('Eval', one_type_eval_metric(val_Y[val_Y.columns[0]].values, data['val'].values))
+    return data
+
+
+def train_for_each_type_no_model_normalized_onehot(
+        model_config_for_each_type,
+        useless_cols_for_each_type,
+        Y_df: pd.DataFrame,
+        train_fn,
+):
+    """
+    3 Data sets: Train-Test-Validation
+    It does not store (and return) model. It is very lean in terms of memory in that sense.
+    Y_df has to be a dataframe. this handles the case for multiple outputs. primary target has to be the first column.
+    """
+    assert isinstance(Y_df, pd.DataFrame)
+
+    anal_dict = {}
+    val_predictions = []
+    for type_enc in reversed(range(8)):
+        print(type_enc)
+        anal_dict[type_enc] = {}
+        X_t = pd.read_hdf('train.hdf', f'type_enc{type_enc}')
+        test_X = pd.read_hdf('test.hdf', f'type_enc{type_enc}')
+
+        cols_to_remove = useless_cols_for_each_type[type_enc].copy()
+        cols_to_remove += get_constant_features(X_t)
+        valid_cols = [c for c in X_t.columns.tolist() if c not in cols_to_remove]
+        print(X_t.shape[1] - len(valid_cols), 'total columns removed')
+        X_t = X_t[valid_cols]
+        anal_dict[type_enc] = train_for_one_type_no_model_normalized_onehot(model_config_for_each_type[type_enc], X_t,
+                                                                            Y_df.loc[X_t.index], train_fn, test_X)
+        pred_t_df = anal_dict[type_enc]['val'].to_frame('prediction')
+        pred_t_df['type_enc'] = type_enc
+        val_predictions.append(pred_t_df)
+
+    prediction_df = pd.concat(val_predictions)
+    actual = Y_df.loc[prediction_df.index, Y_df.columns[0]]
+    print('Final metric', eval_metric(actual.values, prediction_df['prediction'].values, prediction_df['type_enc']))
+
+    return anal_dict
+
+
+def train_for_one_type_Kfold(
+        model_config,
+        train_X_df,
+        Y_df: pd.DataFrame,
+        train_fn,
+        test_X_df=None,
+        n_splits=5,
+):
     """
     It does not store (and return) model. It is very lean in terms of memory in that sense.
+    Y_df has to be a dataframe. this handles the case for multiple outputs. primary target has to be the first column.
     """
+    assert isinstance(Y_df, pd.DataFrame)
+
+    analysis_data = []
+    type_enc = train_X_df['type_enc'].unique()
+    assert len(type_enc) == 1
+    type_enc = type_enc[0]
+    print(type_enc)
+
+    if test_X_df is not None:
+        assert set(test_X_df['type_enc'].unique()) == set([type_enc])
+        test_X_df = test_X_df[train_X_df.columns]
+
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=955)
+
+    train_index = train_X_df.index
+    for tr_idx, val_idx in kf.split(train_X_df[[]]):
+        print('')
+        print(f'{len(analysis_data)}th iteration')
+        train_X = train_X_df.iloc[tr_idx]
+        val_X = train_X_df.iloc[val_idx]
+        val_Y = Y_df.loc[val_X.index]
+        train_Y = Y_df.loc[train_X.index]
+        train_dict = train_fn(model_config, train_X, train_Y, val_X, val_Y, train_X_df.shape[0])
+        # saving important things.
+        data = {}
+        data['train'] = pd.Series(train_dict['train_prediction'], index=train_index[tr_idx])
+        data['val'] = pd.Series(train_dict['val_prediction'], index=train_index[val_idx])
+        data['best_iteration'] = train_dict['best_iteration']
+        data['feature_importance'] = train_dict['feature_importance']['Importances'].to_dict()
+
+        print('Best iter', train_dict['best_iteration'], model_config)
+        print('Eval', one_type_eval_metric(val_Y[val_Y.columns[0]].values, data['val'].values))
+
+        if test_X_df is not None:
+            data['test'] = pd.Series(train_dict['model'].predict(test_X_df), index=test_X_df.index)
+
+        analysis_data.append(data)
+
+    return analysis_data
+
+
+def train_for_one_type_no_model(
+        model_config,
+        train_X_df,
+        Y_df: pd.DataFrame,
+        train_fn,
+        test_X_df=None,
+):
+    """
+    It does not store (and return) model. It is very lean in terms of memory in that sense.
+    Y_df has to be a dataframe. this handles the case for multiple outputs. primary target has to be the first column.
+    """
+    assert isinstance(Y_df, pd.DataFrame)
+    assert len(train_X_df['type_enc'].unique()) == 1
+
+    data = {}
+
+    if test_X_df is not None:
+        assert set(test_X_df['type_enc'].unique()) == set(train_X_df['type_enc'].unique())
+
+        train_X = train_X_df
+        test_X = test_X_df[train_X.columns]
+        test_Y = None
+    else:
+        train_X, test_X = train_test_split(train_X_df, test_size=0.15, random_state=0)
+        test_Y = Y_df.loc[test_X.index]
+
+    train_Y = Y_df.loc[train_X.index]
+    train_idx = train_X.index
+    test_idx = test_X.index
+
+    train_dict = train_fn(model_config, train_X, train_Y, test_X, test_Y, train_X_df.shape[0])
+    # saving important things.
+    data['train'] = pd.Series(train_dict['train_prediction'], index=train_idx)
+    data['best_iteration'] = train_dict['best_iteration']
+    data['feature_importance'] = train_dict['feature_importance']['Importances'].to_dict()
+
+    print('Best iter', train_dict['best_iteration'], model_config)
+
+    data['test'] = pd.Series(train_dict['test_prediction'], index=test_idx)
+
+    if test_Y is not None:
+        print('Eval', one_type_eval_metric(test_Y[test_Y.columns[0]].values, data['test'].values))
+
+    return data
+
+
+def train_for_each_type_no_model(
+        model_config_for_each_type,
+        useless_cols_for_each_type,
+        train_X_df,
+        Y_df: pd.DataFrame,
+        train_fn=None,
+        test_X_df=None,
+):
+    """
+    It does not store (and return) model. It is very lean in terms of memory in that sense.
+    Y_df has to be a dataframe. this handles the case for multiple outputs. primary target has to be the first column.
+    """
+    assert isinstance(Y_df, pd.DataFrame)
+
     if train_fn is None:
         train_fn = train_catboost
 
@@ -236,32 +492,21 @@ def train_for_each_type_no_model(model_config_for_each_type,
         if len(useless_cols_for_each_type[type_enc]) > 0:
             X_t = X_t.drop(useless_cols_for_each_type[type_enc], axis=1)
 
-        if test_X_df is not None:
-            train_X = X_t
-            test_X = test_X_df[test_X_df.type_enc == type_enc][train_X.columns]
-            test_Y = None
-        else:
-            train_X, test_X = train_test_split(X_t, test_size=0.15, random_state=0)
-            test_Y = Y_df.loc[test_X.index]
-
-        train_Y = Y_df.loc[train_X.index]
-        model, feature_importance_df, best_iteration = train_fn(model_config_for_each_type[type_enc], train_X, train_Y,
-                                                                test_X, test_Y, train_X_df.shape[0])
-        # saving important things.
-        anal_dict[type_enc]['train'] = pd.Series(model.predict(train_X), index=train_X.index)
-        anal_dict[type_enc]['best_iteration'] = best_iteration
-        anal_dict[type_enc]['feature_importance'] = feature_importance_df['Importances'].to_dict()
-
-        print('Best iter', best_iteration, model_config_for_each_type[type_enc])
-
-        anal_dict[type_enc]['test'] = pd.Series(model.predict(test_X), index=test_X.index)
+        # TODO: move it outside.
+        X_t.drop(get_constant_features(X_t), axis=1, inplace=True)
+        data = train_for_one_type_no_model(
+            model_config_for_each_type[type_enc],
+            X_t,
+            Y_df.loc[X_t.index],
+            train_fn,
+            test_X_df=test_X_df[test_X_df.type_enc == type_enc] if test_X_df is not None else None,
+        )
+        anal_dict[type_enc] = data
         predictions.append(anal_dict[type_enc]['test'])
-        if test_Y is not None:
-            print('Eval', eval_metric(test_Y.values, predictions[-1].values, test_X['type_enc']))
 
     prediction_df = pd.concat(predictions)
     if test_X_df is None:
-        actual = Y_df.loc[prediction_df.index]
+        actual = Y_df.loc[prediction_df.index, Y_df.columns[0]]
         print('Final metric', eval_metric(actual.values, prediction_df.values,
                                           train_X_df.loc[actual.index, 'type_enc']))
 
@@ -282,37 +527,10 @@ def train_for_each_contrib(catboost_config, train_X_df, Y_df):
     print(one_type_eval_metric(actual, prediction))
 
 
-def train_for_each_type(catboost_config_for_each_type, train_X_df, Y_df, no_validation=False):
-    models = {}
-    anal_dict = {}
-    predictions = []
-    for type_enc in train_X_df['type_enc'].unique():
-        print(type_enc)
-        anal_dict[type_enc] = {}
-        X_t = train_X_df[train_X_df.type_enc == type_enc]
+def get_constant_features(df):
+    cf = []
+    for col in df.columns:
+        if len(df[col].unique()) == 1:
+            cf.append(col)
 
-        if no_validation:
-            train_X = X_t
-            test_X = None
-            test_Y = None
-        else:
-            train_X, test_X = train_test_split(X_t, test_size=0.15, random_state=0)
-            test_Y = Y_df.loc[test_X.index]
-
-        train_Y = Y_df.loc[train_X.index]
-        models[type_enc] = train_catboost(catboost_config_for_each_type[type_enc], train_X, train_Y, test_X, test_Y,
-                                          train_X_df.shape[0])
-        anal_dict[type_enc]['train'] = pd.Series(models[type_enc].predict(train_X), index=train_X.index)
-        print('Best iter', models[type_enc].best_iteration_, catboost_config_for_each_type[type_enc])
-
-        if no_validation is False:
-            anal_dict[type_enc]['test'] = pd.Series(models[type_enc].predict(test_X), index=test_X.index)
-            predictions.append(anal_dict[type_enc]['test'])
-            print('Eval', eval_metric(test_Y.values, predictions[-1].values, test_X['type_enc']))
-
-    if no_validation is False:
-        prediction_df = pd.concat(predictions)
-        actual = Y_df.loc[prediction_df.index]
-        print('Final metric', eval_metric(actual.values, prediction_df.values, X.loc[actual.index, 'type_enc']))
-
-    return (models, anal_dict)
+    return cf
