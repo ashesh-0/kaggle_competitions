@@ -404,7 +404,7 @@ def train_for_one_type_Kfold(
         # saving important things.
         data = {}
         data['train'] = pd.Series(train_dict['train_prediction'], index=train_index[tr_idx])
-        data['val'] = pd.Series(train_dict['val_prediction'], index=train_index[val_idx])
+        data['val'] = pd.Series(train_dict['test_prediction'], index=train_index[val_idx])
         data['best_iteration'] = train_dict['best_iteration']
         data['feature_importance'] = train_dict['feature_importance']['Importances'].to_dict()
 

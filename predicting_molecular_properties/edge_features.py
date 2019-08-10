@@ -3,27 +3,12 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm_notebook
 
-from common_utils_molecule_properties import dot, get_structure_data
+from common_utils_molecule_properties import dot, get_structure_data, get_symmetric_edges
 from common_data_molecule_properties import get_electonegativity, get_lone_pair
 # from intermediate_atom_features import add_intermediate_atom_features
 # from pi_donor import get_pi_donor_feature
 
 # from decorators import timer
-
-
-def get_symmetric_edges(edge_df):
-    """
-    Ensures that all edges in all molecules occur exactly twice in edge_df. This ensures that when we join with
-    on with one of atom_index_0/atom_index_1, all edges are covered.
-    """
-    e_df = edge_df.copy()
-    atom_1 = e_df.atom_index_1.copy()
-    e_df['atom_index_1'] = e_df['atom_index_0']
-    e_df['atom_index_0'] = atom_1
-    e_df[['x', 'y', 'z']] = -1 * e_df[['x', 'y', 'z']]
-    edge_df = pd.concat([edge_df, e_df], ignore_index=True)
-    return edge_df
-
 
 def add_electronetivity_and_lone_pair(df):
     """

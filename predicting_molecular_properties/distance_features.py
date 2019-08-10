@@ -49,6 +49,10 @@ def _add_bond_distance_feature(df):
     df['dis_sq'] = (df['dis_x'] + df['dis_y'] + df['dis_z']).astype(np.float32)
     df['dis_bond'] = np.sqrt(df['dis_sq'])
     df['dis_sq_inv'] = (1 / df['dis_sq']).astype(np.float32)
+
+    df['dis_sq_inv_round1'] = df['dis_sq_inv'].round(1)
+    df['dis_sq_inv_round1_leftover'] = df['dis_sq_inv'] - df['dis_sq_inv_round1']
+
     return df
 
 

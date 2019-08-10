@@ -50,20 +50,39 @@ def add_structure_data_to_edge(edges_df, structures_df, cols_to_add=['atom']):
     return edges_df
 
 
-def get_structure_data(X, str_df):
+def get_symmetric_edges(edge_df):
+    """
+    Ensures that all edges in all molecules occur exactly twice in edge_df. This ensures that when we join with
+    on with one of atom_index_0/atom_index_1, all edges are covered.
+    """
+    e_df = edge_df.copy()
+    atom_1 = e_df.atom_index_1.copy()
+    e_df['atom_index_1'] = e_df['atom_index_0']
+    e_df['atom_index_0'] = atom_1
+    e_df[['x', 'y', 'z']] = -1 * e_df[['x', 'y', 'z']]
+    edge_df = pd.concat([edge_df, e_df], ignore_index=True)
+    return edge_df
+
+
+def get_structure_data(X, str_df, cols_to_add=None):
     """
     Adds atom and xyz for both nodes of the bond 'atom_index_0','atom_index_1'
     """
+    if cols_to_add is None:
+        cols_to_add = ['x', 'y', 'z', 'atom']
+
+    str_df = str_df[cols_to_add + ['molecule_name', 'atom_index']]
+
     X = X.reset_index()
     X = pd.merge(
         X, str_df, left_on=['molecule_name', 'atom_index_0'], right_on=['molecule_name', 'atom_index'], how='left')
     X.drop(['atom_index'], inplace=True, axis=1)
-    X.rename({'x': 'x_0', 'y': 'y_0', 'z': 'z_0', 'atom': 'atom_0'}, axis=1, inplace=True)
+    X.rename({c: f'{c}_0' for c in cols_to_add}, axis=1, inplace=True)
 
     X = pd.merge(
         X, str_df, left_on=['molecule_name', 'atom_index_1'], right_on=['molecule_name', 'atom_index'], how='left')
     X.drop(['atom_index'], inplace=True, axis=1)
-    X.rename({'x': 'x_1', 'y': 'y_1', 'z': 'z_1', 'atom': 'atom_1'}, axis=1, inplace=True)
+    X.rename({c: f'{c}_1' for c in cols_to_add}, axis=1, inplace=True)
     X.set_index('id', inplace=True)
     return X
 
