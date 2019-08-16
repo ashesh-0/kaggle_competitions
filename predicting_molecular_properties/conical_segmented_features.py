@@ -18,11 +18,16 @@ import pandas as pd
 from tqdm import tqdm_notebook
 
 from common_data_molecule_properties import get_electonegativity
-# from atom_potentials import compute_induced_charge_on_atoms
-from decorators import timer
 
-def compute_feature_one_molecule(train_data_ai_0: np.array, train_data_ai_1: np.array, molecule_data: np.array,
-                                 angle_segmentation_factor):
+# from atom_potentials import compute_induced_charge_on_atoms
+# from decorators import timer
+
+
+def compute_feature_one_molecule(train_data_ai_0: np.array,
+                                 train_data_ai_1: np.array,
+                                 molecule_data: np.array,
+                                 angle_segmentation_factor,
+                                 hard_cutoff_distance=6):
     """
     molecule_data: Columns are x,y,z, Induced charge, mass, #lone pairs, #electrons in outermost shell. It is ordered by
                 atom_index
@@ -54,6 +59,8 @@ def compute_feature_one_molecule(train_data_ai_0: np.array, train_data_ai_1: np.
     # Ignore the two atoms of the bond.
     YiA_distance[np.arange(train_count), train_data_ai_0[:, atom_index_idx].astype(int)] = 1e10
     YiA_distance[np.arange(train_count), train_data_ai_1[:, atom_index_idx].astype(int)] = 1e10
+    # Set this to ensure that longer bond distances are not used.
+    YiA_distance[YiA_distance > hard_cutoff_distance] = 1e10
     # xyz will become unit vectors, features will get normalized by distance. large distance will have very low
     # contributions
     B[:, xyz, :] = B[:, xyz, :] / YiA_distance.reshape(B.shape[0], 1, B.shape[2])
@@ -74,7 +81,7 @@ def compute_feature_one_molecule(train_data_ai_0: np.array, train_data_ai_1: np.
     return np.hstack(features)
 
 
-@timer('ConicalSegmentedFeatures')
+# @timer('ConicalSegmentedFeatures')
 def add_conical_segmented_feature(X_df, structures_df, edges_df, angle_segmentation_factor=4):
     electroneg_df = get_electonegativity()
     mass = {'N': 14, 'O': 16, 'F': 19, 'H': 1, 'C': 12}
@@ -124,7 +131,7 @@ def _get_features(train_data_ai_0, train_data_ai_1, molecule_start_indices, mole
     """
     Computes the features, one molecule at a time.
     """
-    features = np.zeros((train_data_ai_0.shape[0], 7 * 7), dtype=np.float32)
+    features = np.zeros((train_data_ai_0.shape[0], 7 * 7), dtype=np.float16)
     for i, m_start_index in tqdm_notebook(list(enumerate(molecule_start_indices))):
         m_end_index = molecule_start_indices[i + 1] if i + 1 < len(molecule_start_indices) else molecule_data.shape[0]
         t_start_index = train_start_indices[i]

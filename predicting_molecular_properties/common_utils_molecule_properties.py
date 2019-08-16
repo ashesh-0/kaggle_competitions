@@ -59,7 +59,11 @@ def get_symmetric_edges(edge_df):
     atom_1 = e_df.atom_index_1.copy()
     e_df['atom_index_1'] = e_df['atom_index_0']
     e_df['atom_index_0'] = atom_1
-    e_df[['x', 'y', 'z']] = -1 * e_df[['x', 'y', 'z']]
+    xyz_cols = list(set(['x', 'y', 'z']).intersection(set(edge_df.columns)))
+    assert len(xyz_cols) in [0, 3]
+    if len(xyz_cols) == 3:
+        e_df[['x', 'y', 'z']] = -1 * e_df[['x', 'y', 'z']]
+
     edge_df = pd.concat([edge_df, e_df], ignore_index=True)
     return edge_df
 

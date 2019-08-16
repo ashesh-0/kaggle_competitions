@@ -29,7 +29,7 @@ def get_X(X_df, structures_df, atom_encoder, edge_df, ia_df, neighbors_df, cycle
     # molecule features.
     X_df = add_distance_features(X_df, structures_df)
 
-    add_conical_segmented_feature(X_df,structures_df,edge_df)
+    # add_conical_segmented_feature(X_df,structures_df,edge_df)
 
     # ascribe atom_type for both neighbors.
     X_df = add_atom_type_both_indices(X_df, atom_type_df)
