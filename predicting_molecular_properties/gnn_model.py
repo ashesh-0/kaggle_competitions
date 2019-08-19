@@ -128,8 +128,8 @@ class MPNN(tf.keras.Model):
 
     def call(self, inputs={'nod_input': None, 'adj_input': None}):
 
-        nodes = inputs['nod_input']
-        edges = inputs['adj_input']
+        nodes = tf.cast(inputs['nod_input'], tf.float32)
+        edges = tf.cast(inputs['adj_input'], tf.float32)
 
         # Get distances, and create mask wherever 0 (i.e. non-existant nodes)
         # This also masks node self-interactions...

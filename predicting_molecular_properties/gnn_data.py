@@ -4,7 +4,7 @@ from common_utils_molecule_properties import get_symmetric_edges
 # from numpy_angle_computation import get_angle_based_features
 # from gnn_edge_feature_computation import get_intermediate_angle_features
 # from gnn_openbabel_based_features import _get_openbabel_based_atom_data
-# from gnn_distance_based_features import induced_electronegativity_atom_feature
+# from gnn_distance_based_features import induced_electronegativity_atom_feature, induced_electronegativity_feature
 # from gnn_add_bond_data import add_bond_data_to_edges_df
 
 import numpy as np
@@ -26,6 +26,10 @@ def get_gnn_data(obabel_fname,
     assert 'mol_id' in raw_X_df
 
     structures_df = structures_df[structures_df.mol_id.isin(raw_X_df.mol_id.unique())].copy()
+    edges_df = edges_df[edges_df.mol_id.isin(raw_X_df.mol_id.unique())].copy()
+    structures_df.sort_values(['mol_id', 'atom_index'], inplace=True)
+    edges_df.sort_values(['mol_id'], inplace=True)
+
     assert set(structures_df.mol_id.unique()) == set(raw_X_df.mol_id.unique())
 
     edge_data = get_edge_data(
@@ -64,7 +68,7 @@ def get_atom_data(obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_
 
     atoms_df = _get_openbabel_based_atom_data(obabel_fname, structures_df)
     angle_features_df = get_angle_based_features(structures_df, nbr_df, edges_df).reset_index()
-    en_atom_df = induced_electronegativity_atom_feature(structures_df, edges_df)
+    en_atom_df, _ = induced_electronegativity_atom_feature(structures_df, edges_df)
 
     atoms_df = pd.merge(atoms_df, angle_features_df, on=['mol_id', 'atom_index'], how='outer')
     atoms_df = pd.merge(atoms_df, en_atom_df, on=['mol_id', 'atom_index'], how='outer')
@@ -113,6 +117,11 @@ def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df):
 
     X_feature_cols = ['1JHC', '1JHN', '2JHC', '2JHH', '2JHN', '3JHC', '3JHH', '3JHN']
     raw_X_df[X_feature_cols] = pd.get_dummies(raw_X_df['type'])
+
+    # add electronegativity features to edges data.
+    en_data_df = induced_electronegativity_feature(structures_df, raw_edges_df, raw_X_df)['edge']
+    raw_X_df = pd.concat([raw_X_df, en_data_df], axis=1)
+    X_feature_cols += en_data_df.columns.tolist()
 
     obabel_feature_cols = [
         'BondLength', 'EqubBondLength', 'IsAromatic', 'IsInRing', 'IsSingle', 'IsDouble', 'IsTriple', 'IsCisOrTrans'
