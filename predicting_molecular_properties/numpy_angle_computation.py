@@ -1,70 +1,84 @@
 """
-Superfast computation of angles between any 3 pair of atoms.
+Fast computation of angles between multiple tuples of 3 atoms.
 """
 import numpy as np
 import pandas as pd
 from tqdm import tqdm_notebook
 
-
-def compute_bond_vector_one_molecule(xyz_data):
-    """
-    xyz_data[i,0] is the x cordinate of ith atom.
-    xyz_data[i,1] is the y cordinate of ith atom.
-    xyz_data[i,1] is the z cordinate of ith atom.
-    """
-    assert xyz_data.shape[1] == 3
-    n_atoms = xyz_data.shape[0]
-
-    A = np.tile(xyz_data.T, (n_atoms, 1, 1)).T
-
-    incoming_bond_vector = A - A.T
-    bond_length = np.linalg.norm(incoming_bond_vector, axis=1)
-    # Ensuring that same atom has very very large bond length.
-    bond_length = np.where(bond_length == 0, 1e10, bond_length)
-    # normalize
-    incoming_bond_vector = incoming_bond_vector / bond_length.reshape(n_atoms, 1, n_atoms)
-    return {'bond_length': bond_length, 'bond_vector': incoming_bond_vector}
+from gnn_common_utils_molecule_properties import compute_neighbor_mask, compute_bond_vector_one_molecule
 
 
-def compute_angle_one_molecule(xyz_data, atom_index_data, neighbor_count=3):
+def compute_angle_one_molecule(xyz_data, atom_index_data, neighbor_mask):
     """
     A--O--B
     Each row in atom_index_data contains one A--O
     Here, We find angle AOB for each row, for each B belonging to nearest 3 neighbors.
+    Args:
+        neighbor_mask: 29*29 boolean array specifying which are the neighbors
     """
     data = compute_bond_vector_one_molecule(xyz_data)
-    dist = data['bond_length']
     bond_vector = data['bond_vector']
     n_atoms = xyz_data.shape[0]
-    # we don't want to select same atom as its neighbor. Hence the -1.
-    neighbor_count = min(neighbor_count, n_atoms - 1)
-    nbr_indices = dist.argsort()[:, :neighbor_count]
+    neighbor_mask = neighbor_mask[:n_atoms, :n_atoms]
 
-    OB_vector = np.zeros((neighbor_count, n_atoms, 3))
-    for i in range(neighbor_count):
-        ith_nbr = nbr_indices[:, i]
-        OB_vector[i, :, :] = bond_vector[np.arange(n_atoms), :, ith_nbr]
+    # For B, we don't want to select either A or O. Hence the -2
+    # neighbor_count = min(neighbor_count, n_atoms - 2)
 
-    OB_vector = OB_vector[:, atom_index_data[:, 1], :]
+    AO_vector = bond_vector[atom_index_data[:, 0], :, atom_index_data[:, 1]].T
+    # (nbrs,xyz,n_entries)
+    AO_vector = np.tile(AO_vector, (n_atoms, 1, 1))
 
-    AO_vector = bond_vector[atom_index_data[:, 0], :, atom_index_data[:, 1]]
-    AO_vector = np.tile(AO_vector, (neighbor_count, 1, 1))
+    # (nbrs,xyz,n_entries)
+    OB_vector = bond_vector[:, :, atom_index_data[:, 1]]
 
-    angle = np.sum(AO_vector * OB_vector, axis=2)
+    neighbor_mask = neighbor_mask[atom_index_data[:, 1], :]
+    # We don't want to get angle A--O--A. So, we remove A from the neighbor list of O
+    neighbor_mask[np.arange(len(neighbor_mask)), atom_index_data[:, 0]] = False
 
-    avg_angle = np.mean(angle, axis=0)
-    std_angle = np.std(angle, axis=0)
-    min_angle = np.min(angle, axis=0)
-    max_angle = np.max(angle, axis=0)
+    # (n_entries,nbrs)
+    angle = np.sum(AO_vector * OB_vector, axis=1).T
+    angle = angle * np.where(neighbor_mask, 1, np.nan)
 
-    return np.vstack([avg_angle, std_angle, min_angle, max_angle]).T
+    avg_angle = np.nanmean(angle, axis=1)
+    var_angle = np.nanvar(angle, axis=1)
+    min_angle = np.nanmin(angle, axis=1)
+    max_angle = np.nanmax(angle, axis=1)
+
+    return np.vstack([avg_angle, var_angle, min_angle, max_angle]).T
 
 
-def angle_based_stats(structures_df, nbr_df):
-    assert set(nbr_df.mol_id.values) == set(structures_df.mol_id.values)
+def get_angle_based_features(structures_df, nbr_df, edges_df):
+    output = []
+    for nbr_distance in [1, 2, 3]:
+        one_nbr_df = nbr_df[nbr_df['nbr_distance'] == nbr_distance].copy()
+        df = _angle_based_stats(structures_df, one_nbr_df, edges_df)
+        df.columns = [f'{nbr_distance}_nbr_based_{c}' for c in df.columns]
+        output.append(df)
 
-    # nbr_df.sort_values('mol_id', inplace=True)
+    output_df = pd.concat(output, axis=1)
+    return output_df
+
+
+def _angle_based_stats(structures_df, nbr_df, edges_df):
+    """
+    both dfs should have mol_id
+    both dfs should have exactly same set of mol id.
+    nbr_df should have two columns: atom_index, nbr_atom_index
+    """
+
+    relevant_mol_ids = set(nbr_df.mol_id.values)
+    assert relevant_mol_ids.issubset(set(structures_df.mol_id.values))
+    assert relevant_mol_ids.issubset(set(edges_df.mol_id.values))
+
+    structures_df = structures_df[structures_df.mol_id.isin(relevant_mol_ids)].copy()
+    edges_df = edges_df[edges_df.mol_id.isin(relevant_mol_ids)].copy()
+
+    nbr_df.sort_values('mol_id', inplace=True)
     structures_df.sort_values(['mol_id', 'atom_index'], inplace=True)
+    edges_df.sort_values(['mol_id'], inplace=True)
+
+    # which all atoms are neighbors of the relevant atom.
+    neighbor_mask = compute_neighbor_mask(edges_df)
 
     atom_index_start_df = nbr_df.groupby('mol_id').size().cumsum().shift(1).fillna(0).to_frame('nbr')
     xyz_mol_start_df = structures_df.groupby('mol_id').size().cumsum().shift(1).fillna(0).to_frame('structure')
@@ -84,10 +98,13 @@ def angle_based_stats(structures_df, nbr_df):
         angle_features[atom_index_start_idx:atom_index_end_idx] = compute_angle_one_molecule(
             xyz_data[xyz_start_idx:xyz_end_idx],
             atom_index_data[atom_index_start_idx:atom_index_end_idx],
+            neighbor_mask[i],
         )
 
-    angle_feature_df = pd.DataFrame(angle_features, index=nbr_df.index, columns=['avg', 'std', 'min', 'max'])
+    angle_feature_df = pd.DataFrame(angle_features, index=nbr_df.index, columns=['avg', 'var', 'min', 'max'])
     angle_feature_df['mol_id'] = nbr_df['mol_id']
     angle_feature_df['atom_index'] = nbr_df['atom_index']
 
-    return angle_feature_df.groupby(['mol_id', 'atom_index']).mean().reset_index()
+    output_df = angle_feature_df.groupby(['mol_id', 'atom_index']).mean()
+    output_df.columns = [f'angle_{c}' for c in output_df.columns]
+    return output_df
