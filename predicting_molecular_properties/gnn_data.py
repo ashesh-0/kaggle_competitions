@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from common_utils import Scaler
 from common_utils_molecule_properties import get_symmetric_edges
 # from numpy_angle_computation import get_angle_based_features
 # from gnn_edge_feature_computation import get_intermediate_angle_features
@@ -9,7 +9,6 @@ from common_utils_molecule_properties import get_symmetric_edges
 
 import numpy as np
 from tqdm import tqdm_notebook
-from sklearn.impute import SimpleImputer
 
 
 def get_gnn_data(obabel_fname,
@@ -20,8 +19,7 @@ def get_gnn_data(obabel_fname,
                  ia_df,
                  atom_count=29,
                  edge_scaler=None,
-                 atom_scaler=None,
-                 atom_imputer=None):
+                 atom_scaler=None):
     assert 'mol_id' in structures_df
     assert 'mol_id' in raw_X_df
 
@@ -36,32 +34,10 @@ def get_gnn_data(obabel_fname,
         obabel_fname, structures_df, raw_X_df, edges_df, ia_df, atom_count=atom_count, scaler=edge_scaler)
     print('Edge data computed')
     atom_data = get_atom_data(
-        obabel_fname,
-        structures_df,
-        raw_X_df,
-        nbr_df,
-        edges_df,
-        atom_count=atom_count,
-        scaler=atom_scaler,
-        imputer=atom_imputer)
+        obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_count=atom_count, scaler=atom_scaler)
     print('Atom data computed')
 
     return {'atom': atom_data, 'edge': edge_data}
-
-
-def _impute_and_normalize(df, binary_features, normalizable_features, imputer, scaler):
-    if imputer is None:
-        imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
-        imputer.fit(df[normalizable_features])
-
-    # Normalize data.
-    if scaler is None:
-        scaler = StandardScaler()
-        scaler.fit(df[normalizable_features])
-
-    df[normalizable_features] = scaler.transform(imputer.transform(df[normalizable_features]))
-    df[binary_features] = df[binary_features].fillna(0)
-    return (imputer, scaler)
 
 
 def get_atom_data(obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_count=29, scaler=None, imputer=None):
@@ -84,14 +60,18 @@ def get_atom_data(obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_
     atom_feature_cols.remove('mol_id')
     atom_feature_cols.remove('atom_index')
 
-    # Normalize data.
+    # Skip these from normalization.
     binary_features = [
         'atom_C', 'atom_F', 'atom_H', 'atom_N', 'atom_O', 'IsHbondAcceptor', 'Type_C+', 'Type_C1', 'Type_C2', 'Type_C3',
         'Type_Cac', 'Type_Car', 'Type_F', 'Type_HC', 'Type_HO', 'Type_N1', 'Type_N2', 'Type_N3', 'Type_N3+', 'Type_Nam',
         'Type_Nar', 'Type_Ng+', 'Type_Nox', 'Type_Npl', 'Type_Ntr', 'Type_O.co2', 'Type_O2', 'Type_O3'
     ]
-    normalizable_features = list(set(atom_feature_cols) - set(binary_features))
-    imputer, scaler = _impute_and_normalize(atoms_df, binary_features, normalizable_features, imputer, scaler)
+
+    if scaler is None:
+        scaler = Scaler(skip_columns=binary_features + ['mol_id', 'atom_index'], dtype=np.float16)
+        scaler.fit(atoms_df)
+
+    scaler.transform(atoms_df)
 
     atom_data = atoms_df[atom_feature_cols].values
     print('AtomFeatures:', len(atom_feature_cols), atom_feature_cols)
@@ -169,8 +149,14 @@ def get_edge_data(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, at
         '1JHC', '1JHN', '2JHC', '2JHH', '2JHN', '3JHC', '3JHH', '3JHN', 'IsAromatic', 'IsInRing', 'IsSingle',
         'IsDouble', 'IsTriple', 'IsCisOrTrans'
     ]
-    normalizable_features = list(set(feature_cols) - set(binary_features))
-    imputer, scaler = _impute_and_normalize(edges_df, binary_features, normalizable_features, imputer, scaler)
+    if scaler is None:
+        scaler = Scaler(
+            skip_columns=binary_features + ['mol_id', 'atom_index_0', 'atom_index_1', 'scalar_coupling_constant'],
+            dtype=np.float16,
+        )
+        scaler.fit(edges_df)
+
+    scaler.transform(edges_df)
 
     mol_count = len(structures_df.mol_id.unique())
 
