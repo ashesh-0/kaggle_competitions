@@ -4,6 +4,7 @@ Yukawa and Coulomb potential.
 import numpy as np
 from tqdm import tqdm_notebook
 import pandas as pd
+
 from common_utils_molecule_properties import get_structure_data, get_symmetric_edges, add_structure_data_to_edge
 from common_data_molecule_properties import get_electonegativity
 

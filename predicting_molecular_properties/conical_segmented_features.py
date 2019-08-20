@@ -23,11 +23,13 @@ from common_data_molecule_properties import get_electonegativity
 # from decorators import timer
 
 
-def compute_feature_one_molecule(train_data_ai_0: np.array,
-                                 train_data_ai_1: np.array,
-                                 molecule_data: np.array,
-                                 angle_segmentation_factor,
-                                 hard_cutoff_distance=6):
+def compute_feature_one_molecule(
+        train_data_ai_0: np.array,
+        train_data_ai_1: np.array,
+        molecule_data: np.array,
+        angle_segmentation_factor,
+        hard_cutoff_distance=6,
+):
     """
     molecule_data: Columns are x,y,z, Induced charge, mass, #lone pairs, #electrons in outermost shell. It is ordered by
                 atom_index
@@ -64,10 +66,11 @@ def compute_feature_one_molecule(train_data_ai_0: np.array,
     # xyz will become unit vectors, features will get normalized by distance. large distance will have very low
     # contributions
     B[:, xyz, :] = B[:, xyz, :] / YiA_distance.reshape(B.shape[0], 1, B.shape[2])
-    B[:, 3:, :] = B[:, 3:, :] / np.power(YiA_distance, 3).reshape(B.shape[0], 1, B.shape[2])
+    # NOTE:In tree based, power was 3. In GNN it is 2 so as to remove lessen outliers.
+    B[:, 3:, :] = B[:, 3:, :] / np.power(YiA_distance, 2).reshape(B.shape[0], 1, B.shape[2])
 
     angle = (A[:, xyz, :] * B[:, xyz, :]).sum(axis=1)
-
+    assert np.all(np.all(angle <= 1)) and np.all(np.all(angle >= -1))
     # Discretize angle into integer segments.
     angle = (angle * angle_segmentation_factor).astype(int)
 
@@ -131,7 +134,9 @@ def _get_features(train_data_ai_0, train_data_ai_1, molecule_start_indices, mole
     """
     Computes the features, one molecule at a time.
     """
-    features = np.zeros((train_data_ai_0.shape[0], 7 * 7), dtype=np.float16)
+    n_sources = molecule_data.shape[1] - 3
+    n_regions = (angle_segmentation_factor - 1) * 2 + 1
+    features = np.zeros((train_data_ai_0.shape[0], n_regions * n_sources), dtype=np.float16)
     for i, m_start_index in tqdm_notebook(list(enumerate(molecule_start_indices))):
         m_end_index = molecule_start_indices[i + 1] if i + 1 < len(molecule_start_indices) else molecule_data.shape[0]
         t_start_index = train_start_indices[i]
@@ -157,5 +162,5 @@ def _get_df(features: np.array, angle_segmentation_factor, feature_columns, X_df
         for feature in feature_columns:
             columns.append(formt.format(conic_region, feature))
 
-    features_df = pd.DataFrame(features, index=X_df_index, columns=columns, dtype=np.float32)
+    features_df = pd.DataFrame(features, index=X_df_index, columns=columns, dtype=np.float16)
     return features_df

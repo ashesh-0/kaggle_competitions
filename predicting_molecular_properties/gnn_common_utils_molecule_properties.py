@@ -48,7 +48,7 @@ def permutation_importance(model, X_edges, X_atoms, y, metric, verbose=True):
         if same[col_index]:
             print('Permutation did not change for:', col_index)
 
-        assert np.sum(same) == X_atoms.shape[-1] - 1
+        assert np.sum(same) >= X_atoms.shape[-1] - 1
 
         preds = model.predict({'adj_input': X_edges, 'nod_input': X_atoms_permuted})
         del X_atoms_permuted

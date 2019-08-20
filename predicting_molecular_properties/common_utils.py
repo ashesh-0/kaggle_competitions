@@ -14,7 +14,7 @@ class Scaler:
         self._skip_columns = [] if skip_columns is None else skip_columns
         self._remove_mean = remove_mean
         self._divide_by_std = divide_by_std
-        self._fillna_with_mean = fillna_with_mean
+        self._fillna_with_zero = fillna_with_mean
         self._mean_dict = {}
         self._std_dict = {}
         self._dtype = dtype
@@ -37,19 +37,19 @@ class Scaler:
 
             if self._remove_mean:
                 if col in self._mean_dict:
-                    df[col] = (df[col] - self._mean_dict[col]).astype(self._dtype)
+                    df[col] = (df[col] - self._mean_dict[col])
                 else:
                     print(f'Unexpectedly no mean present for "{col}"!! Skipping it')
 
             if self._divide_by_std:
                 if col in self._std_dict:
-                    df[col] = (df[col] / self._std_dict[col]).astype(self._dtype)
+                    df[col] = (df[col] / self._std_dict[col])
 
                 else:
                     print(f'Unexpectedly no std present for "{col}"!! Skipping it')
 
-        if self._fillna_with_mean:
-            df.fillna(0, inplace=True)
+            if self._fillna_with_zero:
+                df[col] = df[col].fillna(0).astype(self._dtype)
 
     def fit_transform(self, df):
         self.fit(df)

@@ -109,7 +109,10 @@ def train_catboost(catboost_config, train_X, train_Y, test_X, test_Y, data_size,
     ))
     model = CatBoostRegressor(**catboost_config)
     model.fit(train_pool, eval_set=test_pool, plot=plot, logging_level='Silent')
-    feature_importance_df = model.get_feature_importance(prettified=True).set_index('Feature Index')
+    feature_importance_df = model.get_feature_importance(prettified=True)
+    feature_importance_df.rename({'Feature Id': 'Feature Index'}, inplace=True, axis=1)
+
+    feature_importance_df.set_index('Feature Index', inplace=True)
 
     output_dict = {
         'model': model,

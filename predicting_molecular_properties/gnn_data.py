@@ -9,6 +9,7 @@ from common_utils_molecule_properties import get_symmetric_edges
 
 import numpy as np
 from tqdm import tqdm_notebook
+from sklearn.preprocessing import StandardScaler
 
 
 def get_gnn_data(obabel_fname,
@@ -17,6 +18,7 @@ def get_gnn_data(obabel_fname,
                  nbr_df,
                  edges_df,
                  ia_df,
+                 conical_features_df,
                  atom_count=29,
                  edge_scaler=None,
                  atom_scaler=None):
@@ -31,7 +33,14 @@ def get_gnn_data(obabel_fname,
     assert set(structures_df.mol_id.unique()) == set(raw_X_df.mol_id.unique())
 
     edge_data = get_edge_data(
-        obabel_fname, structures_df, raw_X_df, edges_df, ia_df, atom_count=atom_count, scaler=edge_scaler)
+        obabel_fname,
+        structures_df,
+        raw_X_df,
+        edges_df,
+        ia_df,
+        conical_features_df,
+        atom_count=atom_count,
+        scaler=edge_scaler)
     print('Edge data computed')
     atom_data = get_atom_data(
         obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_count=atom_count, scaler=atom_scaler)
@@ -88,7 +97,7 @@ def get_atom_data(obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_
     return {'data': atom_features, 'imputer': imputer, 'scaler': scaler, 'mol_id': mol_id_df.index.tolist()}
 
 
-def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df):
+def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, conical_features_df):
 
     # electronegativity and bond energy feature
     bond_data_df = add_bond_data_to_edges_df(raw_edges_df, structures_df)[[
@@ -97,6 +106,7 @@ def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df):
 
     X_feature_cols = ['1JHC', '1JHN', '2JHC', '2JHH', '2JHN', '3JHC', '3JHH', '3JHN']
     raw_X_df[X_feature_cols] = pd.get_dummies(raw_X_df['type'])
+    raw_X_df['type'] = StandardScaler().fit_transform(raw_X_df['type'])
 
     # add electronegativity features to edges data.
     en_data_df = induced_electronegativity_feature(structures_df, raw_edges_df, raw_X_df)['edge']
@@ -114,24 +124,37 @@ def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df):
     dihedral_df = get_intermediate_angle_features(get_symmetric_edges(raw_edges_df), raw_X_df, structures_df, ia_df)
 
     raw_X_df = pd.concat([raw_X_df, dihedral_df], axis=1)
-    raw_X_df.drop(['molecule_name', 'type'], axis=1, inplace=True)
+    raw_X_df.drop(['molecule_name'], axis=1, inplace=True)
 
     bond_data_df = get_symmetric_edges(bond_data_df)
     raw_X_df = get_symmetric_edges(raw_X_df)
     obabel_edges_df = get_symmetric_edges(obabel_edges_df)
+    conical_features_df = get_symmetric_edges(conical_features_df)
+
+    # Merging adds nans to some columns. bool turn to object, float16 turns to float64 and so on.
     edges_df = pd.merge(raw_X_df, obabel_edges_df, how='outer', on=['mol_id', 'atom_index_0', 'atom_index_1'])
     edges_df = pd.merge(edges_df, bond_data_df, how='outer', on=['mol_id', 'atom_index_0', 'atom_index_1'])
+
+    edges_df = pd.merge(edges_df, conical_features_df, how='outer', on=['mol_id', 'atom_index_0', 'atom_index_1'])
     return edges_df
 
 
-def get_edge_data(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, atom_count=29, scaler=None, imputer=None):
+def get_edge_data(obabel_fname,
+                  structures_df,
+                  raw_X_df,
+                  raw_edges_df,
+                  ia_df,
+                  conical_features_df,
+                  atom_count=29,
+                  scaler=None,
+                  imputer=None):
     # obabel_feature_cols = [
     #     'BondLength', 'EqubBondLength', 'BondOrder', 'IsAromatic', 'IsInRing', 'IsRotor', 'IsAmide', 'IsPrimaryAmide',
     #     'IsSecondaryAmide', 'IsTertiaryAmide', 'IsEster', 'IsCarbonyl', 'IsSingle', 'IsDouble', 'IsTriple', 'IsClosure',
     #     'IsUp', 'IsDown', 'IsWedge', 'IsHash', 'IsWedgeOrHash', 'IsCisOrTrans', 'IsDoubleBondGeometry'
     # ]
 
-    edges_df = _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df)
+    edges_df = _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, conical_features_df)
     feature_cols = edges_df.columns.tolist()
 
     feature_cols.remove('mol_id')
@@ -149,9 +172,13 @@ def get_edge_data(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, at
         '1JHC', '1JHN', '2JHC', '2JHH', '2JHN', '3JHC', '3JHH', '3JHN', 'IsAromatic', 'IsInRing', 'IsSingle',
         'IsDouble', 'IsTriple', 'IsCisOrTrans'
     ]
+
+    edges_df[binary_features] = edges_df[binary_features].fillna(0).astype(np.float16)
+
     if scaler is None:
         scaler = Scaler(
-            skip_columns=binary_features + ['mol_id', 'atom_index_0', 'atom_index_1', 'scalar_coupling_constant'],
+            skip_columns=binary_features +
+            ['mol_id', 'atom_index_0', 'atom_index_1', 'scalar_coupling_constant', 'type'],
             dtype=np.float16,
         )
         scaler.fit(edges_df)
@@ -166,10 +193,13 @@ def get_edge_data(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, at
     start_ids = start_id_df.astype(int).values
     atom_index_data = edges_df[['atom_index_0', 'atom_index_1']].astype(np.int32).values
 
-    edge_data = edges_df[feature_cols].values
-    target_data = edges_df['scalar_coupling_constant'].fillna(0)
+    edge_data = edges_df[feature_cols].to_numpy(dtype=np.float16)
+    target_data = edges_df[['scalar_coupling_constant', 'type']]
+    target_data['scalar_coupling_constant'] = target_data['scalar_coupling_constant'].fillna(0)
+    target_data['type'] = target_data['type'].fillna(-1)
+    target_data = target_data.values
 
-    target_edge_features = np.zeros((mol_count, atom_count, atom_count, 1), dtype=np.float16)
+    target_edge_features = np.zeros((mol_count, atom_count, atom_count, 2), dtype=np.float16)
 
     edge_features = np.zeros((mol_count, atom_count, atom_count, len(feature_cols)), dtype=np.float16)
 
@@ -178,7 +208,7 @@ def get_edge_data(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, at
         temp_ai_ids = atom_index_data[start_index:end_index]
 
         # Target feature.
-        target_edge_features[i, temp_ai_ids[:, 0], temp_ai_ids[:, 1], 0] = target_data[start_index:end_index]
+        target_edge_features[i, temp_ai_ids[:, 0], temp_ai_ids[:, 1], :] = target_data[start_index:end_index, :]
 
         edge_features[i, temp_ai_ids[:, 0], temp_ai_ids[:, 1], :] = edge_data[start_index:end_index]
 
@@ -188,3 +218,19 @@ def get_edge_data(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, at
         'target': target_edge_features,
         'mol_id': start_id_df.index.tolist(),
     }
+
+
+# [['CONIC_REGION_-3_LonePairAtom', 'CONIC_REGION_-1_CountAtom', 'CONIC_REGION_-3_ValenceElectronsAtom', 'CONIC_REGION_-2_CountAtom', 'CONIC_REGION_-2_LonePairAtom'],
+# ['CONIC_REGION_0_CountAtom', 'CONIC_REGION_1_MassAtom'],
+# ['CONIC_REGION_0_Q', 'CONIC_REGION_-1_EN', 'CONIC_REGION_1_ValenceElectronsAtom', 'CONIC_REGION_-1_CountAtom'],
+# ['CONIC_REGION_1_Q', 'CONIC_REGION_-3_LonePairAtom', 'CONIC_REGION_-2_LonePairAtom'],
+# ['CONIC_REGION_-2_CountAtom', 'CONIC_REGION_1_CountAtom', 'CONIC_REGION_0_EN', 'CONIC_REGION_-2_EN', 'CONIC_REGION_1_Q', 'CONIC_REGION_0_CountAtom'],
+# ['CONIC_REGION_-2_MassAtom', 'CONIC_REGION_2_ValenceElectronsAtom'],]
+
+# top_k = 2
+# output = []
+# for c in data:
+#     output += c[-top_k:]
+# output = list(set(output))
+# output.sort()
+# output
