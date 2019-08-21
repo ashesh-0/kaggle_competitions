@@ -9,7 +9,7 @@ from common_utils_molecule_properties import get_symmetric_edges
 
 import numpy as np
 from tqdm import tqdm_notebook
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder
 
 
 def get_gnn_data(obabel_fname,
@@ -106,7 +106,7 @@ def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, con
 
     X_feature_cols = ['1JHC', '1JHN', '2JHC', '2JHH', '2JHN', '3JHC', '3JHH', '3JHN']
     raw_X_df[X_feature_cols] = pd.get_dummies(raw_X_df['type'])
-    raw_X_df['type'] = StandardScaler().fit_transform(raw_X_df['type'])
+    raw_X_df['type'] = LabelEncoder().fit_transform(raw_X_df['type'])
 
     # add electronegativity features to edges data.
     en_data_df = induced_electronegativity_feature(structures_df, raw_edges_df, raw_X_df)['edge']
@@ -161,6 +161,7 @@ def get_edge_data(obabel_fname,
     feature_cols.remove('atom_index_0')
     feature_cols.remove('atom_index_1')
     feature_cols.remove('scalar_coupling_constant')
+    feature_cols.remove('type')
 
     print('Nan fraction')
     print(edges_df[feature_cols].isna().sum() / edges_df.shape[0])
