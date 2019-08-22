@@ -195,11 +195,11 @@ def permutation_importance(model, X_val, y_val, metric, threshold=0.005, verbose
     for col in tqdm_notebook(X_val.columns):
         freezed_col = X_val[col].copy()
 
-        X_val[col] = np.random.permutation(X_val[col])
+        X_val.loc[:,col] = np.random.permutation(X_val[col])
         preds = model.predict(X_val)
         results[col] = metric(y_val, preds)
 
-        X_val[col] = freezed_col
+        X_val.loc[:,col] = freezed_col
 
         if verbose:
             print(f'column: {col} - {results[col]:.5}')
