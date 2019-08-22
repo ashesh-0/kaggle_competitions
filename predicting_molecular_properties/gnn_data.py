@@ -54,9 +54,11 @@ def get_atom_data(obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_
     atoms_df = _get_openbabel_based_atom_data(obabel_fname, structures_df)
     angle_features_df = get_angle_based_features(structures_df, nbr_df, edges_df).reset_index()
     en_atom_df, _ = induced_electronegativity_atom_feature(structures_df, edges_df)
+    sphere_df = get_spherically_symmetric_features(structures_df)
 
     atoms_df = pd.merge(atoms_df, angle_features_df, on=['mol_id', 'atom_index'], how='outer')
     atoms_df = pd.merge(atoms_df, en_atom_df, on=['mol_id', 'atom_index'], how='outer')
+    atoms_df = pd.merge(atoms_df, sphere_df, on=['mol_id', 'atom_index'], how='outer')
 
     # atoms_df = pd.concat([atoms_df, angle_features_df], axis=1)
 
@@ -92,7 +94,7 @@ def get_atom_data(obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_
         temp_idx = atom_index_data[start_index:end_index]
         atom_features[i, temp_idx[:, 0], :] = atom_data[start_index:end_index]
 
-    return {'data': atom_features, 'imputer': imputer, 'scaler': scaler, 'mol_id': mol_id_df.index.tolist()}
+    return {'data': atom_features, 'scaler': scaler, 'mol_id': mol_id_df.index.tolist()}
 
 
 def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, conical_features_df):
@@ -111,7 +113,9 @@ def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, con
     raw_X_df = pd.concat([raw_X_df, en_data_df], axis=1)
     X_feature_cols += en_data_df.columns.tolist()
 
-    obabel_feature_cols = ['BondLength', 'EqubBondLength', 'IsAromatic', 'IsInRing', 'IsSingle', 'IsDouble', 'IsTriple']
+    obabel_feature_cols = [
+        'BondLength', 'EqubBondLength', 'IsAromatic', 'IsInRing', 'IsSingle', 'IsDouble', 'IsTriple', 'IsCisOrTrans'
+    ]
 
     obabel_edges_df = pd.read_hdf(obabel_fname,
                                   'edges')[['mol_id', 'atom_index_0', 'atom_index_1'] + obabel_feature_cols]
