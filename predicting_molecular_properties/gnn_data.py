@@ -201,6 +201,8 @@ def get_edge_data(obabel_fname,
     target_data = target_data.values
 
     target_edge_features = np.zeros((mol_count, atom_count, atom_count, 2), dtype=np.float16)
+    # By default, type is -1
+    target_edge_features[:, :, :, 1] = -1
 
     edge_features = np.zeros((mol_count, atom_count, atom_count, len(feature_cols)), dtype=np.float16)
 

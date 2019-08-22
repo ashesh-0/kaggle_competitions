@@ -11,7 +11,7 @@ def _permute_one_column(X, column_index):
     return X_permuted
 
 
-def permutation_importance(model, X_edges, X_atoms, y, metric, verbose=True):
+def permutation_importance(model, X_edges, X_atoms, y, edge_type, metric, verbose=True):
     """
     Permutes the features. If performance doesn't change a lot then it is useless.
     """
@@ -20,8 +20,8 @@ def permutation_importance(model, X_edges, X_atoms, y, metric, verbose=True):
     atom_results = {}
     preds = model.predict({'adj_input': X_edges, 'nod_input': X_atoms})
 
-    edges_results['base_score'] = metric(y, preds)
-    atom_results['base_score'] = metric(y, preds)
+    edges_results['base_score'] = metric(y, preds, edge_type)
+    atom_results['base_score'] = metric(y, preds, edge_type)
     if verbose:
         print(f'Base score {edges_results["base_score"]:.5}')
 
@@ -37,7 +37,7 @@ def permutation_importance(model, X_edges, X_atoms, y, metric, verbose=True):
         preds = model.predict({'adj_input': X_edges_permuted, 'nod_input': X_atoms})
         del X_edges_permuted
 
-        edges_results[col_index] = metric(y, preds)
+        edges_results[col_index] = metric(y, preds, edge_type)
         if verbose:
             print(f'EDGES:column: {col_index} - {edges_results[col_index]:.5}')
 
@@ -53,7 +53,7 @@ def permutation_importance(model, X_edges, X_atoms, y, metric, verbose=True):
         preds = model.predict({'adj_input': X_edges, 'nod_input': X_atoms_permuted})
         del X_atoms_permuted
 
-        atom_results[col_index] = metric(y, preds)
+        atom_results[col_index] = metric(y, preds, edge_type)
         if verbose:
             print(f'ATOMS:column: {col_index} - {atom_results[col_index]:.5}')
 
