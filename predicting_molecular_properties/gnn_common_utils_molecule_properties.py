@@ -124,3 +124,29 @@ def eval_metric(actual, predic):
     filtr = actual != 0
     error = np.mean(np.abs(actual[filtr] - predic[filtr]))
     return np.log(error)
+
+
+def eval_metric_with_edge_type(act, pred, edge_type):
+
+    act = act.reshape(-1, 1)
+    pred = pred.reshape(-1, 1)
+    edge_type = edge_type.reshape(-1, 1)
+
+    # NOTE: this is needed due to a bug. won't be needed in future.
+    filtr = act != 0
+    act = act[filtr]
+    pred = pred[filtr]
+    edge_type = edge_type[filtr]
+
+    output = []
+    uniq_edge_types = np.unique(edge_type)
+    uniq_edge_types = np.sort(uniq_edge_types)
+    for one_edge_type in uniq_edge_types:
+        if one_edge_type == -1:
+            continue
+        filtr = edge_type == one_edge_type
+        output.append(np.log(np.mean(np.abs(act[filtr] - pred[filtr]))))
+    print('')
+
+    print('  '.join(['{}=>{:.3f}'.format(et, met) for (et, met) in zip(uniq_edge_types[1:], output)]))
+    return np.mean(output)

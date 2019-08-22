@@ -71,9 +71,7 @@ def get_atom_data(obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_
 
     # Skip these from normalization.
     binary_features = [
-        'atom_C', 'atom_F', 'atom_H', 'atom_N', 'atom_O', 'IsHbondAcceptor', 'Type_C+', 'Type_C1', 'Type_C2', 'Type_C3',
-        'Type_Cac', 'Type_Car', 'Type_F', 'Type_HC', 'Type_HO', 'Type_N1', 'Type_N2', 'Type_N3', 'Type_N3+', 'Type_Nam',
-        'Type_Nar', 'Type_Ng+', 'Type_Nox', 'Type_Npl', 'Type_Ntr', 'Type_O.co2', 'Type_O2', 'Type_O3'
+        'atom_C', 'atom_O', 'IsHbondAcceptor', 'Type_C2', 'Type_C3', 'Type_Car', 'Type_HC', 'Type_O2', 'Type_O3'
     ]
 
     if scaler is None:
@@ -113,9 +111,7 @@ def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, con
     raw_X_df = pd.concat([raw_X_df, en_data_df], axis=1)
     X_feature_cols += en_data_df.columns.tolist()
 
-    obabel_feature_cols = [
-        'BondLength', 'EqubBondLength', 'IsAromatic', 'IsInRing', 'IsSingle', 'IsDouble', 'IsTriple', 'IsCisOrTrans'
-    ]
+    obabel_feature_cols = ['BondLength', 'EqubBondLength', 'IsAromatic', 'IsInRing', 'IsSingle', 'IsDouble', 'IsTriple']
 
     obabel_edges_df = pd.read_hdf(obabel_fname,
                                   'edges')[['mol_id', 'atom_index_0', 'atom_index_1'] + obabel_feature_cols]

@@ -17,11 +17,9 @@ def _get_openbabel_based_atom_data(obabel_fname, structures_df):
     atoms_df.sort_values('mol_id', inplace=True)
 
     atom_feature_cols = [
-        'atom_C', 'atom_F', 'atom_H', 'atom_N', 'atom_O', 'SpinMultiplicity', 'Valence', 'HvyValence', 'PartialCharge',
-        'MemberOfRingCount', 'MemberOfRingSize', 'SmallestBondAngle', 'AverageBondAngle', 'IsHbondAcceptor', 'Type_C+',
-        'Type_C1', 'Type_C2', 'Type_C3', 'Type_Cac', 'Type_Car', 'Type_F', 'Type_HC', 'Type_HO', 'Type_N1', 'Type_N2',
-        'Type_N3', 'Type_N3+', 'Type_Nam', 'Type_Nar', 'Type_Ng+', 'Type_Nox', 'Type_Npl', 'Type_Ntr', 'Type_O.co2',
-        'Type_O2', 'Type_O3'
+        'atom_C', 'atom_O', 'SpinMultiplicity', 'Valence', 'HvyValence', 'PartialCharge', 'MemberOfRingCount',
+        'MemberOfRingSize', 'SmallestBondAngle', 'AverageBondAngle', 'IsHbondAcceptor', 'Type_C2', 'Type_C3',
+        'Type_Car', 'Type_HC', 'Type_O2', 'Type_O3'
     ]
 
     # atom_feature_cols = [
