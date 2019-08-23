@@ -160,7 +160,12 @@ def get_edge_data(obabel_fname,
     feature_cols.remove('mol_id')
     feature_cols.remove('atom_index_0')
     feature_cols.remove('atom_index_1')
-    feature_cols.remove('scalar_coupling_constant')
+
+    target_present = False
+    # Only in train data, this is present.
+    if 'scalar_coupling_constant' in feature_cols:
+        target_present = True
+        feature_cols.remove('scalar_coupling_constant')
     feature_cols.remove('type')
 
     print('Nan fraction')
@@ -195,14 +200,19 @@ def get_edge_data(obabel_fname,
     atom_index_data = edges_df[['atom_index_0', 'atom_index_1']].astype(np.int32).values
 
     edge_data = edges_df[feature_cols].to_numpy(dtype=np.float16)
-    target_data = edges_df[['scalar_coupling_constant', 'type']]
-    target_data['scalar_coupling_constant'] = target_data['scalar_coupling_constant'].fillna(0)
-    target_data['type'] = target_data['type'].fillna(-1)
-    target_data = target_data.values
 
-    target_edge_features = np.zeros((mol_count, atom_count, atom_count, 2), dtype=np.float16)
+    if target_present:
+        target_data = edges_df[['scalar_coupling_constant', 'type']]
+        target_data['scalar_coupling_constant'] = target_data['scalar_coupling_constant'].fillna(0)
+        target_data['type'] = target_data['type'].fillna(-1)
+        target_data = target_data.values
+    else:
+        target_data = target_data = edges_df[['type']].fillna(-1).values
+
+    target_edge_features = np.zeros((mol_count, atom_count, atom_count, target_data.shape[1]), dtype=np.float16)
+
     # By default, type is -1
-    target_edge_features[:, :, :, 1] = -1
+    target_edge_features[:, :, :, -1] = -1
 
     edge_features = np.zeros((mol_count, atom_count, atom_count, len(feature_cols)), dtype=np.float16)
 

@@ -142,11 +142,11 @@ def eval_metric_with_edge_type(act, pred, edge_type):
     uniq_edge_types = np.unique(edge_type)
     uniq_edge_types = np.sort(uniq_edge_types)
     for one_edge_type in uniq_edge_types:
-        if one_edge_type == -1:
-            continue
+        assert one_edge_type != -1
+
         filtr = edge_type == one_edge_type
         output.append(np.log(np.mean(np.abs(act[filtr] - pred[filtr]))))
     print('')
 
-    print('  '.join(['{}=>{:.3f}'.format(et, met) for (et, met) in zip(uniq_edge_types[1:], output)]))
+    print('  '.join(['{}=>{:.3f}'.format(et, met) for (et, met) in zip(uniq_edge_types, output)]))
     return np.mean(output)
