@@ -86,3 +86,4 @@ def step_decay(epoch, learning_rate):
     lrate = initial_lrate * np.power(drop, np.floor((epoch) / epochs_drop))
     tf.print("Learning rate: ", lrate)
     return lrate
+

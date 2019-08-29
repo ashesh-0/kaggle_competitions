@@ -19,6 +19,7 @@ def get_gnn_data(obabel_fname,
                  edges_df,
                  ia_df,
                  conical_features_df,
+                 tree_based_features_fname,
                  atom_count=29,
                  edge_scaler=None,
                  atom_scaler=None):
@@ -39,6 +40,7 @@ def get_gnn_data(obabel_fname,
         edges_df,
         ia_df,
         conical_features_df,
+        tree_based_features_fname,
         atom_count=atom_count,
         scaler=edge_scaler)
     print('Edge data computed')
@@ -97,7 +99,15 @@ def get_atom_data(obabel_fname, structures_df, raw_X_df, nbr_df, edges_df, atom_
     return {'data': atom_features, 'scaler': scaler, 'mol_id': mol_id_df.index.tolist()}
 
 
-def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, conical_features_df):
+def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, conical_features_df,
+                 tree_based_features_fname):
+
+    # Pick some features from old data.
+    top_features = [
+        'ai0_pi_donor_2', 'EF_atom_index_1_nbr_distance_mean', '1nbr_ai1_EF_atom_index_1_induced_elecneg_along',
+        'dis_sq_inv_round1_leftover', '1nbr_ai1_EF_induced_elecneg_along_diff'
+    ]
+    orig_features_df = pd.read_hdf(tree_based_features_fname, 'X')[top_features]
 
     # electronegativity and bond energy feature
     bond_data_df = add_bond_data_to_edges_df(raw_edges_df, structures_df)[[
@@ -110,7 +120,7 @@ def _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, con
 
     # add electronegativity features to edges data.
     en_data_df = induced_electronegativity_feature(structures_df, raw_edges_df, raw_X_df)['edge']
-    raw_X_df = pd.concat([raw_X_df, en_data_df], axis=1)
+    raw_X_df = pd.concat([raw_X_df, en_data_df, orig_features_df], axis=1)
     X_feature_cols += en_data_df.columns.tolist()
 
     obabel_feature_cols = [
@@ -145,6 +155,7 @@ def get_edge_data(obabel_fname,
                   raw_edges_df,
                   ia_df,
                   conical_features_df,
+                  tree_based_features_fname,
                   atom_count=29,
                   scaler=None,
                   imputer=None):
@@ -154,7 +165,8 @@ def get_edge_data(obabel_fname,
     #     'IsUp', 'IsDown', 'IsWedge', 'IsHash', 'IsWedgeOrHash', 'IsCisOrTrans', 'IsDoubleBondGeometry'
     # ]
 
-    edges_df = _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, conical_features_df)
+    edges_df = _get_edge_df(obabel_fname, structures_df, raw_X_df, raw_edges_df, ia_df, conical_features_df,
+                            tree_based_features_fname)
     feature_cols = edges_df.columns.tolist()
 
     feature_cols.remove('mol_id')
