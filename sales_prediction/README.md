@@ -1,3 +1,5 @@
+# Look at Data analysis
+[Notebook link](https://github.com/ashesh-0/kaggle_competitions/blob/master/sales_prediction/notebooks/data-analysis.ipynb)
 # Steps to run the code:
 1. Unzip the code.
 2. Appropriately set the directory in constants.py and in notebooks which you wish to run. Specifically,<br/>
